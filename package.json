@@ -2,7 +2,7 @@
   "name": "torrenueva-futsal",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://eliasgv04.github.io/torrenueva-futsal",
+  "homepage": "https://eliasgv04.github.io/torrenuevafutsal",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
