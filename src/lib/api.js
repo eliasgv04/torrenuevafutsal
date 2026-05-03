@@ -6,6 +6,8 @@ const HAS_SUPABASE = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.en
 const LS_TEAMS = 'tf_teams'
 const LS_EXERCISES = 'tf_exercises'
 const LS_RECORDS = 'tf_records'
+const LS_TRAININGS = 'tf_trainings'
+const LS_TRAINING_ITEMS = 'tf_training_items'
 
 function uid(){
   return 'local-' + Math.random().toString(36).slice(2,9)
@@ -90,9 +92,14 @@ export const api = {
     const exercises = lsGet(LS_EXERCISES).filter(exercise => exercise.team_id !== teamId)
     const exerciseIds = new Set(lsGet(LS_EXERCISES).filter(exercise => exercise.team_id === teamId).map(exercise => exercise.id))
     const records = lsGet(LS_RECORDS).filter(record => !exerciseIds.has(record.exercise_id))
+    const trainings = lsGet(LS_TRAININGS).filter(training => training.team_id !== teamId)
+    const trainingIds = new Set(lsGet(LS_TRAININGS).filter(training => training.team_id === teamId).map(training => training.id))
+    const trainingItems = lsGet(LS_TRAINING_ITEMS).filter(item => !trainingIds.has(item.training_id))
     lsSet(LS_TEAMS, teams)
     lsSet(LS_EXERCISES, exercises)
     lsSet(LS_RECORDS, records)
+    lsSet(LS_TRAININGS, trainings)
+    lsSet(LS_TRAINING_ITEMS, trainingItems)
   },
 
   async getExercises(teamId){
@@ -139,8 +146,10 @@ export const api = {
     }
     const exercises = lsGet(LS_EXERCISES).filter(exercise => exercise.id !== exerciseId)
     const records = lsGet(LS_RECORDS).filter(record => record.exercise_id !== exerciseId)
+    const trainingItems = lsGet(LS_TRAINING_ITEMS).filter(item => item.exercise_id !== exerciseId)
     lsSet(LS_EXERCISES, exercises)
     lsSet(LS_RECORDS, records)
+    lsSet(LS_TRAINING_ITEMS, trainingItems)
   },
 
   async getRecords(exerciseId){
@@ -172,5 +181,110 @@ export const api = {
     items.unshift(r)
     lsSet(LS_RECORDS, items)
     return r
+  },
+
+  async getTrainings(teamId){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('trainings')
+          .select('*')
+          .eq('team_id', teamId)
+          .order('training_date', {ascending:false})
+          .order('created_at', {ascending:false})
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    return lsGet(LS_TRAININGS)
+      .filter(t=>t.team_id===teamId)
+      .sort((a,b)=>new Date(b.training_date) - new Date(a.training_date))
+  },
+
+  async getTrainingItems(trainingId){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('training_exercises')
+          .select('*')
+          .eq('training_id', trainingId)
+          .order('order_index', {ascending:true})
+          .order('created_at', {ascending:true})
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    return lsGet(LS_TRAINING_ITEMS)
+      .filter(i=>i.training_id===trainingId)
+      .sort((a,b)=>(a.order_index ?? 0) - (b.order_index ?? 0))
+  },
+
+  async createTraining({team_id, training_date, notes, items}){
+    try{
+      if(HAS_SUPABASE){
+        const { data: training, error: trainingError } = await supabase
+          .from('trainings')
+          .insert({team_id, training_date, notes})
+          .select()
+          .single()
+        if(trainingError) throw trainingError
+
+        if(items?.length){
+          const payload = items.map((item, index)=>(
+            {
+              training_id: training.id,
+              exercise_id: item.exercise_id,
+              exercise_name: item.exercise_name,
+              objective: item.objective,
+              category: item.category,
+              planned_count: item.planned_count,
+              dimensions: item.dimensions,
+              notes: item.notes,
+              order_index: index
+            }
+          ))
+          const { error: itemsError } = await supabase.from('training_exercises').insert(payload)
+          if(itemsError) throw itemsError
+        }
+        return training
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+
+    const trainings = lsGet(LS_TRAININGS)
+    const training = {
+      id: uid(),
+      team_id,
+      training_date,
+      notes: notes || '',
+      created_at: new Date().toISOString()
+    }
+    trainings.unshift(training)
+    lsSet(LS_TRAININGS, trainings)
+
+    const currentItems = lsGet(LS_TRAINING_ITEMS)
+    const newItems = (items || []).map((item, index)=>(
+      {
+        id: uid(),
+        training_id: training.id,
+        exercise_id: item.exercise_id,
+        exercise_name: item.exercise_name,
+        objective: item.objective,
+        category: item.category,
+        planned_count: item.planned_count,
+        dimensions: item.dimensions,
+        notes: item.notes,
+        order_index: index,
+        created_at: new Date().toISOString()
+      }
+    ))
+    lsSet(LS_TRAINING_ITEMS, [...newItems, ...currentItems])
+
+    return training
   }
 }
