@@ -8,6 +8,7 @@ import ExerciseDetailModal from './ExerciseDetailModal'
 import TrainingPlannerModal from './TrainingPlannerModal'
 import TrainingHistoryModal from './TrainingHistoryModal'
 import TeamDashboardModal from './TeamDashboardModal'
+import FutsalPage from './FutsalPage'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
@@ -21,6 +22,7 @@ export default function TeamPage({team, onBack}){
   const [creatingTraining,setCreatingTraining] = useState(false)
   const [showTrainingHistory,setShowTrainingHistory] = useState(false)
   const [showDashboard,setShowDashboard] = useState(false)
+  const [showFutsal, setShowFutsal] = useState(false)
   const [trainings,setTrainings] = useState([])
   const [showExerciseFilters,setShowExerciseFilters] = useState(false)
   const [showTrainingFilters,setShowTrainingFilters] = useState(false)
@@ -234,23 +236,28 @@ export default function TeamPage({team, onBack}){
 
   return (
     <div>
-      <div className="header-top">
-        <div>
-          <button className="btn btn-back" onClick={onBack}>← Atrás</button>
-          <h2 style={{display:'inline-block',marginLeft:16,marginTop:0}}>{team.name}</h2>
-        </div>
-        <div style={{display:'flex', gap:10, flexWrap:'wrap'}}>
-          <button className="btn" onClick={()=>setShowDashboard(true)}>📈 Dashboard</button>
-          <button className="btn" onClick={()=>setCreatingTraining(true)}>🗓️ Nuevo entrenamiento</button>
-          <button className="btn" onClick={()=>setShowTrainingHistory(true)}>📚 Historial</button>
-          <button className="btn btn-primary" onClick={()=>setCreating(true)}>+ Nuevo ejercicio</button>
-        </div>
-      </div>
+      {showFutsal ? (
+        <FutsalPage teamId={team.id} onBack={() => setShowFutsal(false)} />
+      ) : (
+        <>
+          <div className="header-top">
+            <div>
+              <button className="btn btn-back" onClick={onBack}>← Atrás</button>
+              <h2 style={{display:'inline-block',marginLeft:16,marginTop:0}}>{team.name}</h2>
+            </div>
+            <div style={{display:'flex', gap:10, flexWrap:'wrap'}}>
+              <button className="btn" onClick={()=>setShowDashboard(true)}>📈 Dashboard</button>
+              <button className="btn" onClick={()=>setCreatingTraining(true)}>🗓️ Nuevo entrenamiento</button>
+              <button className="btn" onClick={()=>setShowTrainingHistory(true)}>📚 Historial</button>
+              <button className="btn btn-futsal" onClick={()=>setShowFutsal(true)}>⚽ Futsal</button>
+              <button className="btn btn-primary" onClick={()=>setCreating(true)}>+ Nuevo ejercicio</button>
+            </div>
+          </div>
 
-      <div className="compact-toolbar">
-        <button className="btn" style={{marginTop:0}} onClick={()=>setShowExerciseFilters(s=>!s)}>
-          🔎 Filtros ejercicios {showExerciseFilters ? '▲' : '▼'}
-        </button>
+          <div className="compact-toolbar">
+            <button className="btn" style={{marginTop:0}} onClick={()=>setShowExerciseFilters(s=>!s)}>
+              🔎 Filtros ejercicios {showExerciseFilters ? '▲' : '▼'}
+            </button>
         <button className="btn" style={{marginTop:0}} onClick={()=>setShowTrainingFilters(s=>!s)}>
           🗂️ Filtros historial {showTrainingFilters ? '▲' : '▼'}
         </button>
@@ -371,6 +378,8 @@ export default function TeamPage({team, onBack}){
       )}
       {detailFor && (
         <ExerciseDetailModal exercise={detailFor} onClose={()=>setDetailFor(null)} />
+      )}
+        </>
       )}
     </div>
   )

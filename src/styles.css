@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Raleway:wght@400;600;700;800&family=Poppins:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Raleway:wght@400;600;700;800&family=Poppins:wght@500;600;700&display=swap');
 
 :root{
   --yellow: #ffd400;
@@ -191,6 +191,71 @@ main{padding:32px 24px;flex:1}
 
 .btn-danger:hover{
   box-shadow:0 6px 20px rgba(214,69,69,0.35);
+}
+
+.btn-secondary{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:10px 16px;
+  border-radius:10px;
+  border:1px solid rgba(31,111,35,0.18);
+  background:#fff;
+  color:var(--green-dark);
+  font-family:'Poppins', sans-serif;
+  font-weight:700;
+  cursor:pointer;
+  transition:all 0.2s ease;
+}
+
+.btn-secondary:hover{
+  background:rgba(31,111,35,0.05);
+  transform:translateY(-1px);
+}
+
+.btn-secondary-small{
+  padding:6px 10px;
+  font-size:12px;
+}
+
+.modal-close{
+  width:32px;
+  height:32px;
+  border:none;
+  border-radius:999px;
+  background:rgba(31,111,35,0.08);
+  color:var(--green-dark);
+  font-size:18px;
+  font-weight:700;
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  transition:all 0.2s ease;
+}
+
+.modal-close:hover{
+  background:rgba(31,111,35,0.16);
+  transform:scale(1.05);
+}
+
+.btn-primary{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  border:none;
+  min-height:42px;
+  padding:10px 16px;
+  border-radius:10px;
+  font-family:'Poppins', sans-serif;
+  font-weight:700;
+  cursor:pointer;
+  transition:all 0.2s ease;
+}
+
+.btn-primary:hover{
+  transform:translateY(-1px);
 }
 
 .empty-state{
@@ -650,3 +715,1109 @@ label{
   .bar-row{grid-template-columns:120px 1fr 32px;gap:8px}
   .month-col{min-width:40px}
 }
+
+/* ========== FUTSAL STYLES ========== */
+
+.btn-futsal{
+  background:linear-gradient(135deg, #FF6B6B 0%, #FF8C42 100%);
+  color:#fff;
+}
+
+.btn-futsal:hover{
+  background:linear-gradient(135deg, #FF5252 0%, #FF7A3D 100%);
+}
+
+.futsal-page{
+  animation:slideDown 0.3s ease;
+}
+
+.futsal-page,
+.futsal-page button,
+.futsal-page input,
+.futsal-page select,
+.futsal-page textarea,
+.futsal-page h1,
+.futsal-page h2,
+.futsal-page h3,
+.futsal-page h4,
+.futsal-page th,
+.futsal-page td,
+.futsal-page label,
+.futsal-page span,
+.futsal-page p{
+  font-family:'Outfit', 'Raleway', sans-serif;
+}
+
+.page-header{
+  padding:16px;
+  background:linear-gradient(135deg, #FF6B6B 0%, #FF8C42 100%);
+  color:#fff;
+  border-radius:12px;
+  margin:16px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.page-header h1{
+  margin:0;
+  font-size:24px;
+}
+
+.futsal-menu{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));
+  gap:16px;
+  padding:16px;
+}
+
+.menu-btn{
+  background:#fff;
+  border:2px solid #FF6B6B;
+  border-radius:12px;
+  padding:20px;
+  cursor:pointer;
+  transition:all 0.3s ease;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:12px;
+}
+
+.menu-btn:hover{
+  background:#FF6B6B;
+  color:#fff;
+  transform:translateY(-2px);
+}
+
+.menu-icon{
+  font-size:32px;
+}
+
+.futsal-view{
+  animation:fadeIn 0.3s ease;
+}
+
+.player-management-modal, .match-management-modal, .match-tracker-modal{
+  background:#fff;
+  border-radius:12px;
+  padding:10px;
+  max-width:95vw;
+  max-height:92vh;
+  overflow-y:auto;
+  margin:auto;
+}
+
+.player-management-modal,
+.match-management-modal,
+.match-tracker-modal{
+  width:min(1240px, 95vw);
+}
+
+.player-management-modal .modal-content,
+.match-management-modal .modal-content,
+.match-tracker-modal .modal-content{
+  max-width:none;
+  width:100%;
+  background:transparent;
+  box-shadow:none;
+  padding:8px;
+  max-height:none;
+  animation:none;
+}
+
+.player-management-modal .players-table-container,
+.match-management-modal .matches-list,
+.player-management-modal .player-form,
+.match-management-modal .match-form{
+  width:min(1000px, 100%);
+  margin-left:auto;
+  margin-right:auto;
+}
+
+.modal-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:12px;
+}
+
+.modal-header h2{
+  margin:0;
+  font-family:'Poppins', sans-serif;
+  font-size:22px;
+  line-height:1.1;
+}
+
+.match-tracker-modal .modal-header h2{
+  font-size:18px;
+}
+
+.tracker-content{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.chrono-float-toggle{
+  position:fixed;
+  right:18px;
+  bottom:18px;
+  z-index:1200;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:10px 14px;
+  border:none;
+  border-radius:999px;
+  background:linear-gradient(135deg, #1f6f23 0%, #2d8a32 100%);
+  color:#fff;
+  font-family:'Poppins', sans-serif;
+  font-size:13px;
+  font-weight:700;
+  box-shadow:0 10px 24px rgba(31,111,35,0.28);
+  cursor:pointer;
+  transition:transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.chrono-float-toggle:hover{
+  transform:translateY(-2px);
+  box-shadow:0 14px 28px rgba(31,111,35,0.34);
+}
+
+.chrono-float-toggle.running{
+  background:linear-gradient(135deg, #ff6b6b 0%, #ff8c42 100%);
+}
+
+.chrono-float-icon{
+  font-size:14px;
+}
+
+.player-form, .match-form{
+  display:grid;
+  gap:12px;
+  margin-bottom:16px;
+  padding:12px;
+  background:rgba(255,255,255,0.8);
+  border-radius:10px;
+}
+
+.player-form, .match-form{
+  display:grid;
+  gap:12px;
+  margin-bottom:16px;
+  padding:12px;
+  background:rgba(255,255,255,0.8);
+  border-radius:10px;
+}
+
+.players-list, .matches-list{
+  display:grid;
+  gap:12px;
+}
+
+.player-card, .match-card{
+  background:rgba(248,252,249,0.95);
+  border-left:4px solid #FF6B6B;
+  border-radius:10px;
+  padding:12px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.player-info{
+  flex:1;
+}
+
+.player-header{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:6px;
+}
+
+.player-dorsal{
+  background:#FF6B6B;
+  color:#fff;
+  padding:4px 8px;
+  border-radius:6px;
+  font-weight:700;
+  font-size:12px;
+}
+
+.player-position{
+  display:inline-block;
+  padding:4px 8px;
+  border-radius:6px;
+  color:#fff;
+  font-size:11px;
+  font-weight:600;
+  margin-top:4px;
+}
+
+.match-info h3{
+  margin:0;
+  font-size:18px;
+}
+
+.match-date, .match-place, .match-jornada{
+  margin:4px 0;
+  font-size:12px;
+  color:var(--text-light);
+}
+
+.match-actions{
+  display:flex;
+  gap:8px;
+}
+
+.chrono-section{
+  background:linear-gradient(135deg, #FF6B6B 0%, #FF8C42 100%);
+  color:#fff;
+  padding:8px 10px;
+  border-radius:12px;
+  text-align:center;
+  margin-bottom:8px;
+}
+
+.chrono-title-row{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  margin-bottom:4px;
+}
+
+.chrono-title-row h3{
+  margin:0;
+  font-size:13px;
+  font-family:'Poppins', sans-serif;
+  font-weight:700;
+  letter-spacing:0.2px;
+}
+
+.chrono-display{
+  font-size:28px;
+  font-weight:700;
+  font-family:'Poppins', sans-serif;
+  margin:2px 0 6px;
+  line-height:1;
+}
+
+.chrono-actions{
+  display:flex;
+  justify-content:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.btn-chrono{
+  background:rgba(255,255,255,0.2);
+  color:#fff;
+  border:2px solid #fff;
+  padding:6px 10px;
+  border-radius:8px;
+  font-weight:600;
+  cursor:pointer;
+  transition:all 0.3s ease;
+  margin:0;
+  font-size:12px;
+}
+
+.btn-chrono:hover{
+  background:#fff;
+  color:#FF6B6B;
+}
+
+.btn-chrono.running{
+  background:#fff;
+  color:#FF6B6B;
+}
+
+.on-field-section, .bench-section, .rival-section{
+  background:rgba(248,252,249,0.95);
+  border:1px solid rgba(31,111,35,0.14);
+  border-radius:10px;
+  padding:8px;
+  margin-bottom:8px;
+}
+
+.on-field-section h3, .bench-section h3, .rival-section h3{
+  margin:0 0 6px 0;
+  color:var(--green-dark);
+  font-size:14px;
+}
+
+.rival-stats-grid{
+  display:grid;
+  grid-template-columns:repeat(5, minmax(0, 1fr));
+  gap:10px;
+}
+
+.rival-stat-field{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  margin:0;
+  font-family:'Poppins', sans-serif;
+  font-size:12px;
+  font-weight:700;
+  color:var(--green-dark);
+}
+
+.rival-stat-field span{
+  line-height:1.1;
+}
+
+.rival-stat-field input{
+  margin:0;
+  padding:8px 10px;
+  text-align:center;
+  font-size:14px;
+}
+
+.on-field-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));
+  gap:12px;
+  margin-bottom:12px;
+}
+
+.field-player-card{
+  background:#fff;
+  border:2px solid #FF6B6B;
+  border-radius:10px;
+  padding:10px;
+  text-align:center;
+  animation:scaleIn 0.3s ease;
+}
+
+.player-badge{
+  display:inline-block;
+  padding:6px 10px;
+  border-radius:6px;
+  color:#fff;
+  font-weight:700;
+  font-size:14px;
+  margin-bottom:6px;
+}
+
+.player-name, .player-position{
+  margin:4px 0;
+  font-size:13px;
+}
+
+.player-stats, .player-cards{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;
+  margin:8px 0;
+}
+
+.player-stats input, .player-cards input{
+  padding:6px;
+  font-size:11px;
+  margin:0;
+}
+
+.btn-substitute, .btn-danger{
+  background:#FF6B6B;
+  color:#fff;
+  border:none;
+  padding:6px 10px;
+  border-radius:6px;
+  cursor:pointer;
+  font-size:11px;
+  font-weight:600;
+  transition:all 0.3s ease;
+  width:100%;
+  margin-top:6px;
+}
+
+.btn-substitute:hover, .btn-danger:hover{
+  background:#FF5252;
+  transform:translateY(-1px);
+}
+
+.btn-substitute{
+  min-height:32px;
+}
+
+.match-goals-editor{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+}
+
+.match-goals-editor label{
+  margin:0;
+  font-size:12px;
+  color:var(--text-light);
+  font-family:'Poppins', sans-serif;
+}
+
+.match-goals-input{
+  width:64px;
+  min-width:64px;
+  margin:0;
+  padding:6px 8px;
+  text-align:center;
+  font-size:14px;
+  font-weight:700;
+}
+
+.bench-list{
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(100px, 1fr));
+  gap:8px;
+}
+
+.bench-limit-note{
+  margin:0 0 8px;
+  color:#b45309;
+  font-size:12px;
+  font-weight:700;
+}
+
+.bench-player{
+  background:#fff;
+  border:2px dashed #2d8a32;
+  border-radius:8px;
+  padding:8px;
+  cursor:pointer;
+  font-size:12px;
+  transition:all 0.3s ease;
+}
+
+.bench-player:hover{
+  background:#2d8a32;
+  color:#fff;
+}
+
+.bench-player:disabled{
+  opacity:0.45;
+  cursor:not-allowed;
+  background:#f3f4f6;
+  border-style:solid;
+  color:#6b7280;
+}
+
+.bench-player:disabled:hover{
+  background:#f3f4f6;
+  color:#6b7280;
+}
+
+.substitution-modal{
+  background:rgba(0,0,0,0.7);
+  position:fixed;
+  top:0;
+  left:0;
+  right:0;
+  bottom:0;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  z-index:1000;
+}
+
+.substitution-modal h4{
+  color:#fff;
+  margin-bottom:16px;
+}
+
+/* ========== IMPROVED FUTSAL STYLES ========== */
+
+/* Players Management Table */
+.players-table-container{
+  overflow-x:auto;
+  background:rgba(255,255,255,0.9);
+  border-radius:10px;
+  border:1px solid rgba(31,111,35,0.14);
+  margin-top:12px;
+}
+
+.players-table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:14px;
+}
+
+.players-table thead{
+  background:linear-gradient(135deg, rgba(31,111,35,0.1) 0%, rgba(45,138,50,0.1) 100%);
+  border-bottom:2px solid rgba(31,111,35,0.2);
+}
+
+.players-table th{
+  padding:12px 16px;
+  text-align:left;
+  font-weight:700;
+  color:var(--green-dark);
+  font-family:'Poppins', sans-serif;
+}
+
+.players-table tbody tr{
+  border-bottom:1px solid rgba(31,111,35,0.1);
+  transition:all 0.2s ease;
+  cursor:pointer;
+}
+
+.players-table tbody tr:hover{
+  background:rgba(31,111,35,0.04);
+}
+
+.players-table td{
+  padding:12px 16px;
+  vertical-align:middle;
+}
+
+.dorsal-cell{
+  font-weight:700;
+  color:var(--yellow);
+  font-size:16px;
+}
+
+.name-cell{
+  font-weight:600;
+  color:var(--text-dark);
+}
+
+.position-cell{
+  text-align:center;
+}
+
+.position-badge{
+  display:inline-block;
+  padding:4px 12px;
+  border-radius:6px;
+  color:#fff;
+  font-size:12px;
+  font-weight:600;
+}
+
+.actions-cell{
+  text-align:right;
+}
+
+.btn-delete-small{
+  background:#FF6B6B;
+  color:#fff;
+  border:none;
+  border-radius:4px;
+  width:28px;
+  height:28px;
+  font-size:16px;
+  cursor:pointer;
+  transition:all 0.2s ease;
+  padding:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.btn-delete-small:hover{
+  background:#FF5252;
+  transform:scale(1.1);
+}
+
+/* Player Detail View */
+.player-detail-view{
+  animation:slideDown 0.3s ease;
+}
+
+.btn-back{
+  background:var(--green-dark);
+  color:#fff;
+  border:none;
+  border-radius:8px;
+  padding:8px 16px;
+  margin-bottom:16px;
+  cursor:pointer;
+  font-weight:600;
+  transition:all 0.2s ease;
+}
+
+.btn-back:hover{
+  background:var(--green-light);
+  transform:translateX(-2px);
+}
+
+.player-header-detail{
+  display:flex;
+  align-items:flex-start;
+  gap:20px;
+  background:rgba(248,252,249,0.95);
+  border:2px solid rgba(31,111,35,0.2);
+  border-radius:12px;
+  padding:20px;
+  margin-bottom:20px;
+}
+
+.player-dorsal-large{
+  font-size:48px;
+  font-weight:700;
+  color:var(--yellow);
+  line-height:1;
+  min-width:80px;
+}
+
+.player-info-detail h2{
+  margin:0 0 8px 0;
+  font-size:24px;
+  color:var(--text-dark);
+}
+
+.position-badge-large{
+  display:inline-block;
+  padding:6px 14px;
+  border-radius:6px;
+  color:#fff;
+  font-weight:600;
+}
+
+.player-stats-summary h3{
+  color:var(--green-dark);
+  margin-top:0;
+}
+
+.player-stats-note{
+  margin:0 0 14px;
+  text-align:center;
+  color:var(--text-light);
+  font-size:13px;
+}
+
+.career-stats-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+  gap:12px;
+  max-width:760px;
+  margin:0 auto;
+}
+
+.career-stat-card{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  background:rgba(248,252,249,0.95);
+  border:1px solid rgba(31,111,35,0.16);
+  border-radius:14px;
+  padding:16px 12px;
+  text-align:center;
+  font-family:'Poppins', sans-serif;
+  font-weight:700;
+  color:var(--green-dark);
+}
+
+.career-stat-card span{
+  font-size:13px;
+  line-height:1.1;
+}
+
+.career-stat-card input{
+  margin:0;
+  width:100%;
+  max-width:110px;
+  text-align:center;
+  font-size:18px;
+  font-weight:700;
+  border-radius:10px;
+}
+
+.matches-list{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.match-summary{
+  background:rgba(255,255,255,0.9);
+  border:1px solid rgba(31,111,35,0.15);
+  border-radius:10px;
+  padding:12px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:16px;
+}
+
+.match-info h4{
+  margin:0 0 4px 0;
+  color:var(--text-dark);
+  font-size:16px;
+}
+
+.match-date{
+  margin:0;
+  font-size:12px;
+  color:var(--text-light);
+}
+
+.match-stats-inline{
+  display:flex;
+  gap:12px;
+  align-items:center;
+}
+
+.stat-item{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:4px;
+  background:rgba(31,111,35,0.08);
+  padding:8px 12px;
+  border-radius:6px;
+  min-width:50px;
+}
+
+.stat-label{
+  font-size:11px;
+  color:var(--text-light);
+  font-weight:600;
+}
+
+.stat-value{
+  font-size:18px;
+  font-weight:700;
+  color:var(--green-dark);
+  font-family:'Poppins', sans-serif;
+}
+
+/* Match Tracker Table */
+.on-field-table-container{
+  overflow-x:auto;
+  margin-bottom:12px;
+}
+
+.on-field-table{
+  width:100%;
+  border-collapse:collapse;
+  background:rgba(255,255,255,0.9);
+  border-radius:10px;
+  overflow:hidden;
+  border:1px solid rgba(31,111,35,0.14);
+  font-size:13px;
+}
+
+.on-field-table thead{
+  background:linear-gradient(135deg, rgba(31,111,35,0.1) 0%, rgba(45,138,50,0.1) 100%);
+  border-bottom:2px solid rgba(31,111,35,0.2);
+}
+
+.on-field-table th{
+  padding:8px 6px;
+  text-align:center;
+  font-weight:700;
+  color:var(--green-dark);
+  font-family:'Poppins', sans-serif;
+  font-size:11px;
+}
+
+.on-field-table tbody tr{
+  border-bottom:1px solid rgba(31,111,35,0.08);
+}
+
+.on-field-table td{
+  padding:8px 6px;
+  text-align:center;
+}
+
+.dorsal-col{
+  font-weight:700;
+  color:var(--yellow);
+  text-align:left;
+}
+
+.name-col{
+  text-align:left;
+  font-weight:600;
+  color:var(--text-dark);
+}
+
+.position-col{
+  text-align:center;
+}
+
+.position-badge-small{
+  display:inline-block;
+  padding:3px 8px;
+  border-radius:4px;
+  color:#fff;
+  font-size:11px;
+  font-weight:600;
+}
+
+.stat-input{
+  width:100%;
+  max-width:46px;
+  padding:3px 5px;
+  border:1px solid rgba(31,111,35,0.2);
+  border-radius:4px;
+  text-align:center;
+  font-weight:600;
+  font-size:12px;
+}
+
+.stat-input:focus{
+  outline:none;
+  border-color:var(--green-dark);
+  background:rgba(255,255,255,0.95);
+  box-shadow:0 0 0 2px rgba(31,111,35,0.1);
+}
+
+.actions-col{
+  text-align:center;
+}
+
+.btn-small-action{
+  background:linear-gradient(135deg, var(--green-dark) 0%, var(--green-light) 100%);
+  color:#fff;
+  border:none;
+  border-radius:4px;
+  padding:4px 10px;
+  font-size:11px;
+  font-weight:600;
+  cursor:pointer;
+  transition:all 0.2s ease;
+  white-space:nowrap;
+}
+
+.btn-small-action:hover{
+  transform:translateY(-1px);
+  box-shadow:0 2px 6px rgba(31,111,35,0.3);
+}
+
+.live-time-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:58px;
+  padding:5px 8px;
+  border-radius:999px;
+  background:rgba(31,111,35,0.1);
+  color:var(--green-dark);
+  font-family:'Poppins', sans-serif;
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:0.2px;
+}
+
+/* Responsive adjustments */
+@media(max-width:900px){
+  .players-table th, .players-table td{
+    padding:10px;
+    font-size:13px;
+  }
+  
+  .on-field-table th, .on-field-table td{
+    padding:8px 4px;
+    font-size:12px;
+  }
+  
+  .match-stats-inline{
+    gap:8px;
+  }
+  
+  .stat-item{
+    padding:6px 8px;
+    min-width:45px;
+  }
+  
+  .stat-label{
+    font-size:10px;
+  }
+  
+  .stat-value{
+    font-size:16px;
+  }
+}
+
+@media(max-width:600px){
+  .match-summary{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+  
+  .match-stats-inline{
+    width:100%;
+    flex-wrap:wrap;
+  }
+  
+  .player-header-detail{
+    flex-direction:column;
+  }
+
+  .chrono-float-toggle{
+    right:12px;
+    bottom:12px;
+    padding:9px 12px;
+    font-size:12px;
+  }
+
+  .chrono-float-toggle span:last-child{
+    display:none;
+  }
+
+  .rival-stats-grid{
+    grid-template-columns:1fr;
+  }
+}
+
+.substitution-list{
+  display:grid;
+  gap:8px;
+  max-width:400px;
+  width:100%;
+}
+
+.substitution-list button{
+  background:#fff;
+  border:none;
+  padding:10px;
+  border-radius:8px;
+  cursor:pointer;
+  font-weight:600;
+  transition:all 0.3s ease;
+}
+
+.substitution-list button:hover{
+  background:#2d8a32;
+  color:#fff;
+}
+
+.rival-stats-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(80px, 1fr));
+  gap:8px;
+}
+
+.rival-stats-grid input{
+  padding:8px;
+  font-size:12px;
+  margin:0;
+  text-align:center;
+}
+
+@media (max-width:600px){
+  .futsal-menu{
+    grid-template-columns:1fr;
+  }
+  .on-field-grid{
+    grid-template-columns:repeat(auto-fill, minmax(100px, 1fr));
+  }
+  .chrono-display{
+    font-size:36px;
+  }
+}
+
+/* ===== Historical player stats (manual) ===== */
+.career-stats-grid{
+  grid-template-columns:repeat(2, minmax(140px, 1fr));
+  max-width:420px;
+  margin:0 auto;
+}
+
+.player-stats-summary{
+  text-align:center;
+}
+
+/* ===== Live score and match closure ===== */
+.live-scoreboard{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:14px;
+  padding:10px 12px;
+  border-radius:10px;
+  background:rgba(255,255,255,0.9);
+  border:1px solid rgba(31,111,35,0.14);
+}
+
+.score-team{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:3px;
+  min-width:160px;
+}
+
+.score-label{
+  font-size:12px;
+  color:var(--text-light);
+  font-family:'Poppins', sans-serif;
+  text-align:center;
+}
+
+.score-team strong{
+  font-size:30px;
+  font-family:'Poppins', sans-serif;
+  color:var(--green-dark);
+  line-height:1;
+}
+
+.score-separator{
+  font-size:28px;
+  font-weight:700;
+  color:var(--green-dark);
+}
+
+.match-footer-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+  padding:4px 0 2px;
+}
+
+.match-footer-actions .btn-danger,
+.match-footer-actions .btn-secondary{
+  width:auto;
+  margin-top:0;
+}
+
+.match-notes-section{
+  margin-top:8px;
+  background:rgba(248,252,249,0.95);
+  border:1px solid rgba(31,111,35,0.14);
+  border-radius:10px;
+  padding:10px;
+}
+
+.match-notes-section label{
+  margin:0 0 6px;
+  display:block;
+  color:var(--green-dark);
+  font-size:13px;
+  font-family:'Poppins', sans-serif;
+}
+
+.match-notes-section textarea{
+  margin:0;
+  min-height:92px;
+  resize:vertical;
+  line-height:1.35;
+}
+
+@media (max-width:700px){
+  .live-scoreboard{
+    gap:10px;
+    padding:8px;
+  }
+
+  .score-team{
+    min-width:110px;
+  }
+
+  .score-team strong{
+    font-size:24px;
+  }
+
+  .career-stats-grid{
+    grid-template-columns:1fr;
+    max-width:260px;
+  }
+}
+

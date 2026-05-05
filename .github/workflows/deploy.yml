@@ -16,12 +16,21 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON: ${{ secrets.VITE_SUPABASE_ANON }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Validate Supabase env
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_ANON" ]; then
+            echo "Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON in GitHub Secrets"
+            exit 1
+          fi
       - name: Install
         run: npm ci
       - name: Build

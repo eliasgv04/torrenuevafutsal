@@ -2,12 +2,17 @@ import { supabase } from './supabaseClient'
 
 const HAS_SUPABASE = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON)
 
+if(!HAS_SUPABASE){
+  console.warn('Supabase is not configured. App is using localStorage fallback, data will not sync across devices.')
+}
+
 // LocalStorage keys
 const LS_TEAMS = 'tf_teams'
 const LS_EXERCISES = 'tf_exercises'
 const LS_RECORDS = 'tf_records'
 const LS_TRAININGS = 'tf_trainings'
 const LS_TRAINING_ITEMS = 'tf_training_items'
+const LS_PLAYER_CAREER_STATS = 'tf_player_career_stats'
 
 function uid(){
   return 'local-' + Math.random().toString(36).slice(2,9)
@@ -286,5 +291,441 @@ export const api = {
     lsSet(LS_TRAINING_ITEMS, [...newItems, ...currentItems])
 
     return training
+  },
+
+  // ========== FUTSAL MATCH MANAGEMENT ==========
+  
+  async getPlayers(teamId){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('players')
+          .select('*')
+          .eq('team_id', teamId)
+          .order('dorsal', {ascending:true})
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    return lsGet('tf_players')
+      .filter(p=>p.team_id===teamId)
+      .sort((a,b)=>a.dorsal - b.dorsal)
+  },
+
+  async createPlayer({team_id, name, surname, dorsal, position}){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('players')
+          .insert({team_id, name, surname, dorsal, position})
+          .select()
+          .single()
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    const players = lsGet('tf_players')
+    const player = {id:uid(), team_id, name, surname, dorsal, position, created_at: new Date().toISOString()}
+    players.push(player)
+    lsSet('tf_players', players)
+    return player
+  },
+
+  async deletePlayer(playerId){
+    try{
+      if(HAS_SUPABASE){
+        const { error } = await supabase.from('players').delete().eq('id', playerId)
+        if(error) throw error
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    const players = lsGet('tf_players')
+    lsSet('tf_players', players.filter(p=>p.id!==playerId))
+    const careerStats = lsGet(LS_PLAYER_CAREER_STATS)
+    lsSet(LS_PLAYER_CAREER_STATS, careerStats.filter(s=>s.player_id!==playerId))
+  },
+
+  async getPlayerCareerStats(playerId){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('player_career_stats')
+          .select('*')
+          .eq('player_id', playerId)
+          .maybeSingle()
+        if(error) throw error
+        return data || null
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    return lsGet(LS_PLAYER_CAREER_STATS).find(s=>s.player_id===playerId) || null
+  },
+
+  async upsertPlayerCareerStats({team_id, player_id, matches_played, goals, shots_on_goal, yellow_cards, red_cards, minutes_played, saves}){
+    const payload = {
+      team_id,
+      player_id,
+      matches_played: matches_played ?? 0,
+      goals: goals ?? 0,
+      shots_on_goal: shots_on_goal ?? 0,
+      yellow_cards: yellow_cards ?? 0,
+      red_cards: red_cards ?? 0,
+      minutes_played: minutes_played ?? 0,
+      saves: saves ?? 0,
+      updated_at: new Date().toISOString()
+    }
+
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('player_career_stats')
+          .upsert(payload, {onConflict:'player_id'})
+          .select()
+          .single()
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+
+    const stats = lsGet(LS_PLAYER_CAREER_STATS)
+    const idx = stats.findIndex(item=>item.player_id===player_id)
+    const record = { id: uid(), ...payload }
+    if(idx >= 0) stats[idx] = { ...stats[idx], ...record }
+    else stats.push(record)
+    lsSet(LS_PLAYER_CAREER_STATS, stats)
+    return record
+  },
+
+  async getMatches(teamId){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('matches')
+          .select('*')
+          .eq('team_id', teamId)
+          .order('match_date', {ascending:false})
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    return lsGet('tf_matches')
+      .filter(m=>m.team_id===teamId)
+      .sort((a,b)=>new Date(b.match_date) - new Date(a.match_date))
+  },
+
+  async createMatch({team_id, rival_team_name, match_date, place, jornada, is_home, notes}){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('matches')
+          .insert({
+            team_id,
+            rival_team_name,
+            match_date,
+            place,
+            jornada,
+            notes: notes || '',
+            is_home: is_home ?? true,
+            status: 'scheduled'
+          })
+          .select()
+          .single()
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    const matches = lsGet('tf_matches')
+    const match = {
+      id:uid(),
+      team_id,
+      rival_team_name,
+      match_date,
+      place,
+      jornada,
+      notes: notes || '',
+      is_home: is_home ?? true,
+      status: 'scheduled',
+      home_goals: null,
+      away_goals: null,
+      ended_at: null,
+      created_at: new Date().toISOString()
+    }
+    matches.push(match)
+    lsSet('tf_matches', matches)
+    return match
+  },
+
+  async finalizeMatch({match_id, home_goals, away_goals, ended_at, notes}){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('matches')
+          .update({
+            status: 'finished',
+            home_goals,
+            away_goals,
+            notes,
+            ended_at: ended_at || new Date().toISOString()
+          })
+          .eq('id', match_id)
+          .select()
+          .single()
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    const matches = lsGet('tf_matches')
+    const idx = matches.findIndex(m=>m.id===match_id)
+    if(idx>=0){
+      matches[idx] = {
+        ...matches[idx],
+        status: 'finished',
+        home_goals,
+        away_goals,
+        notes,
+        ended_at: ended_at || new Date().toISOString()
+      }
+      lsSet('tf_matches', matches)
+      return matches[idx]
+    }
+    return null
+  },
+
+  async updateMatchNotes({match_id, notes}){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('matches')
+          .update({notes})
+          .eq('id', match_id)
+          .select()
+          .single()
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    const matches = lsGet('tf_matches')
+    const idx = matches.findIndex(m=>m.id===match_id)
+    if(idx>=0){
+      matches[idx] = { ...matches[idx], notes }
+      lsSet('tf_matches', matches)
+      return matches[idx]
+    }
+    return null
+  },
+
+  async deleteMatch(matchId){
+    try{
+      if(HAS_SUPABASE){
+        const { error } = await supabase.from('matches').delete().eq('id', matchId)
+        if(error) throw error
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    const matches = lsGet('tf_matches')
+    lsSet('tf_matches', matches.filter(m=>m.id!==matchId))
+  },
+
+  async getMatchPlayerStats(matchId){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('match_player_stats')
+          .select('*')
+          .eq('match_id', matchId)
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    return lsGet('tf_match_player_stats')
+      .filter(s=>s.match_id===matchId)
+  },
+
+  async upsertMatchPlayerStats({match_id, player_id, goals, shots_on_goal, fouls, yellow_cards, red_cards, minutes_played, saves}){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('match_player_stats')
+          .upsert({match_id, player_id, goals, shots_on_goal, fouls, yellow_cards, red_cards, minutes_played, saves}, {onConflict:'match_id,player_id'})
+          .select()
+          .single()
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    const stats = lsGet('tf_match_player_stats')
+    const idx = stats.findIndex(s=>s.match_id===match_id && s.player_id===player_id)
+    const stat = {id:uid(), match_id, player_id, goals, shots_on_goal, fouls, yellow_cards, red_cards, minutes_played, saves, created_at: new Date().toISOString()}
+    if(idx>=0) stats[idx] = stat
+    else stats.push(stat)
+    lsSet('tf_match_player_stats', stats)
+    return stat
+  },
+
+  async getRivalTeamStats(matchId){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('rival_team_stats')
+          .select('*')
+          .eq('match_id', matchId)
+          .single()
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    const stats = lsGet('tf_rival_team_stats').filter(s=>s.match_id===matchId)
+    return stats[0] || null
+  },
+
+  async upsertRivalTeamStats({match_id, goals, shots_on_goal, fouls, yellow_cards, red_cards}){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('rival_team_stats')
+          .upsert({match_id, goals, shots_on_goal, fouls, yellow_cards, red_cards}, {onConflict:'match_id'})
+          .select()
+          .single()
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    const stats = lsGet('tf_rival_team_stats')
+    const idx = stats.findIndex(s=>s.match_id===match_id)
+    const stat = {id:uid(), match_id, goals, shots_on_goal, fouls, yellow_cards, red_cards, created_at: new Date().toISOString()}
+    if(idx>=0) stats[idx] = stat
+    else stats.push(stat)
+    lsSet('tf_rival_team_stats', stats)
+    return stat
+  },
+
+  async getOnFieldPlayers(matchId){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('on_field_players')
+          .select('*')
+          .eq('match_id', matchId)
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    return lsGet('tf_on_field_players')
+      .filter(o=>o.match_id===matchId)
+  },
+
+  async setPlayerOnField({match_id, player_id, entry_minute}){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('on_field_players')
+          .insert({match_id, player_id, entry_minute})
+          .select()
+          .single()
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    const onField = lsGet('tf_on_field_players')
+    const record = {id:uid(), match_id, player_id, entry_minute, exit_minute:null, created_at: new Date().toISOString()}
+    onField.push(record)
+    lsSet('tf_on_field_players', onField)
+    return record
+  },
+
+  async setPlayerOffField(onFieldId, exit_minute){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('on_field_players')
+          .update({exit_minute})
+          .eq('id', onFieldId)
+          .select()
+          .single()
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    const onField = lsGet('tf_on_field_players')
+    const idx = onField.findIndex(o=>o.id===onFieldId)
+    if(idx>=0) onField[idx].exit_minute = exit_minute
+    lsSet('tf_on_field_players', onField)
+    return onField[idx]
+  },
+
+  async getPlayerMatches(playerId){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('match_player_stats')
+          .select(`
+            *,
+            matches:match_id(
+              id,
+              rival_team_name,
+              match_date
+            )
+          `)
+          .eq('player_id', playerId)
+          .order('match_date', {ascending:false})
+        if(error) throw error
+        return data.map(d=>({
+          id: d.id,
+          rival_team_name: d.matches?.rival_team_name,
+          match_date: d.matches?.match_date,
+          goals: d.goals,
+          shots_on_goal: d.shots_on_goal,
+          yellow_cards: d.yellow_cards,
+          red_cards: d.red_cards,
+          saves: d.saves,
+          minutes_played: d.minutes_played
+        }))
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    const playerStats = lsGet('tf_match_player_stats').filter(s=>s.player_id===playerId)
+    const matches = lsGet('tf_matches')
+    return playerStats.map(stat=>{
+      const match = matches.find(m=>m.id===stat.match_id)
+      return {
+        ...stat,
+        match_id: stat.match_id,
+        rival_team_name: match?.rival_team_name,
+        match_date: match?.match_date
+      }
+    }).sort((a,b)=>new Date(b.match_date||0) - new Date(a.match_date||0))
   }
 }
+
