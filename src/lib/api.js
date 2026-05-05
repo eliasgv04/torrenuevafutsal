@@ -13,6 +13,9 @@ const LS_RECORDS = 'tf_records'
 const LS_TRAININGS = 'tf_trainings'
 const LS_TRAINING_ITEMS = 'tf_training_items'
 const LS_PLAYER_CAREER_STATS = 'tf_player_career_stats'
+const LS_SUPABASE_PLAYERS_SYNCED = 'tf_supabase_players_synced_v1'
+
+let localPlayersSyncPromise = null
 
 function uid(){
   return 'local-' + Math.random().toString(36).slice(2,9)
@@ -47,10 +50,140 @@ function lsGet(key){
 }
 function lsSet(key, val){ localStorage.setItem(key, JSON.stringify(val)) }
 
+function normalizeText(value){
+  return String(value || '').trim().toLowerCase()
+}
+
+async function ensureLocalPlayersSynced(){
+  if(!HAS_SUPABASE) return
+  if(localStorage.getItem(LS_SUPABASE_PLAYERS_SYNCED) === '1') return
+  if(localPlayersSyncPromise) return localPlayersSyncPromise
+
+  localPlayersSyncPromise = (async () => {
+    const localTeams = lsGet(LS_TEAMS)
+    const localPlayers = lsGet('tf_players')
+    const localCareerStats = lsGet(LS_PLAYER_CAREER_STATS)
+
+    if(localTeams.length === 0 && localPlayers.length === 0 && localCareerStats.length === 0){
+      localStorage.setItem(LS_SUPABASE_PLAYERS_SYNCED, '1')
+      return
+    }
+
+    const { data: cloudTeams, error: cloudTeamsError } = await supabase.from('teams').select('*')
+    if(cloudTeamsError) throw cloudTeamsError
+
+    const teamMap = new Map()
+    const cloudTeamsByName = new Map(
+      (cloudTeams || []).map((team) => [normalizeText(team.name), team])
+    )
+
+    for(const localTeam of localTeams){
+      const teamKey = normalizeText(localTeam.name)
+      let cloudTeam = cloudTeamsByName.get(teamKey)
+
+      if(!cloudTeam){
+        const { data, error } = await supabase
+          .from('teams')
+          .insert({ name: localTeam.name })
+          .select()
+          .single()
+        if(error) throw error
+        cloudTeam = data
+        cloudTeamsByName.set(teamKey, cloudTeam)
+      }
+
+      teamMap.set(localTeam.id, cloudTeam.id)
+    }
+
+    const localTeamIds = new Set(localPlayers.map((player) => player.team_id))
+    const cloudTeamIds = [...localTeamIds]
+      .map((teamId) => teamMap.get(teamId))
+      .filter(Boolean)
+
+    let cloudPlayers = []
+    if(cloudTeamIds.length > 0){
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .in('team_id', cloudTeamIds)
+      if(error) throw error
+      cloudPlayers = data || []
+    }
+
+    const playerMap = new Map()
+
+    for(const localPlayer of localPlayers){
+      const cloudTeamId = teamMap.get(localPlayer.team_id)
+      if(!cloudTeamId) continue
+
+      const matchedPlayer = cloudPlayers.find((player) => (
+        player.team_id === cloudTeamId &&
+        player.dorsal === localPlayer.dorsal &&
+        normalizeText(player.name) === normalizeText(localPlayer.name) &&
+        normalizeText(player.surname) === normalizeText(localPlayer.surname)
+      ))
+
+      if(matchedPlayer){
+        playerMap.set(localPlayer.id, matchedPlayer.id)
+        continue
+      }
+
+      const { data, error } = await supabase
+        .from('players')
+        .insert({
+          team_id: cloudTeamId,
+          name: localPlayer.name,
+          surname: localPlayer.surname,
+          dorsal: localPlayer.dorsal,
+          position: localPlayer.position
+        })
+        .select()
+        .single()
+
+      if(error) throw error
+      playerMap.set(localPlayer.id, data.id)
+      cloudPlayers.push(data)
+    }
+
+    for(const localStat of localCareerStats){
+      const cloudPlayerId = playerMap.get(localStat.player_id)
+      if(!cloudPlayerId) continue
+
+      const cloudTeamId = teamMap.get(localStat.team_id)
+      const payload = {
+        team_id: cloudTeamId || localStat.team_id,
+        player_id: cloudPlayerId,
+        matches_played: localStat.matches_played ?? 0,
+        goals: localStat.goals ?? 0,
+        shots_on_goal: localStat.shots_on_goal ?? 0,
+        yellow_cards: localStat.yellow_cards ?? 0,
+        red_cards: localStat.red_cards ?? 0,
+        minutes_played: localStat.minutes_played ?? 0,
+        saves: localStat.saves ?? 0,
+        updated_at: localStat.updated_at || new Date().toISOString()
+      }
+
+      const { error } = await supabase
+        .from('player_career_stats')
+        .upsert(payload, { onConflict: 'player_id' })
+
+      if(error) throw error
+    }
+
+    localStorage.setItem(LS_SUPABASE_PLAYERS_SYNCED, '1')
+    console.info('Local player data synced to Supabase.')
+  })().finally(() => {
+    localPlayersSyncPromise = null
+  })
+
+  return localPlayersSyncPromise
+}
+
 export const api = {
   async getTeams(){
     try{
       if(HAS_SUPABASE){
+        await ensureLocalPlayersSynced()
         const { data, error } = await supabase.from('teams').select('*').order('created_at', {ascending:false})
         if(error) throw error
         return data
@@ -298,6 +431,7 @@ export const api = {
   async getPlayers(teamId){
     try{
       if(HAS_SUPABASE){
+        await ensureLocalPlayersSynced()
         const { data, error } = await supabase
           .from('players')
           .select('*')
@@ -353,6 +487,7 @@ export const api = {
   async getPlayerCareerStats(playerId){
     try{
       if(HAS_SUPABASE){
+        await ensureLocalPlayersSynced()
         const { data, error } = await supabase
           .from('player_career_stats')
           .select('*')
