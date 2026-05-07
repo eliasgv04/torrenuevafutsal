@@ -259,9 +259,8 @@ export const api = {
     if(file) photo_url = await uploadPhoto(file)
     try{
       if(HAS_SUPABASE){
-        const { data, error } = await supabase.from('exercises').insert({team_id,name,objective,photo_url,category}).select().single()
+        const { data, error } = await supabase.from('exercises').insert({team_id,name,objective,photo_url,category,dimensions}).select().single()
         if(error) throw error
-        // Supabase schema may not include `dimensions`; attach it to the returned object so UI can use it
         return { ...data, dimensions }
       }
     }catch(e){
@@ -279,7 +278,7 @@ export const api = {
     if(file) photo_url = await uploadPhoto(file)
     try{
       if(HAS_SUPABASE){
-        const payload = { name, objective, category }
+        const payload = { name, objective, category, dimensions }
         if(photo_url) payload.photo_url = photo_url
         const { data, error } = await supabase.from('exercises').update(payload).eq('id', exerciseId).select().single()
         if(error) throw error
