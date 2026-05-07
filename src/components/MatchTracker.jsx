@@ -15,6 +15,18 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
   const draftSaveRef = useRef(null)
   const draftKey = `tf_match_draft_${match.id}`
 
+  const createEmptyMatchPlayerStat = (playerId) => ({
+    match_id: match.id,
+    player_id: playerId,
+    goals: 0,
+    shots_on_goal: 0,
+    fouls: 0,
+    yellow_cards: 0,
+    red_cards: 0,
+    minutes_played: 0,
+    saves: 0
+  })
+
   function StatStepper({ value, onChange, min = 0, max, onBlur }){
     return (
       <div className="stepper">
@@ -109,40 +121,26 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
       }
     }
 
-  const validOnField = onField.filter((item) => players.some((p) => p.id === item.player_id))
+    const validOnField = onField.filter((item) => players.some((p) => p.id === item.player_id))
     setOnFieldPlayers(validOnField)
-    
-    // Build statsMap from BD
+
     const statsFromBd = {}
     stats.forEach((s) => {
       statsFromBd[s.player_id] = s
     })
-    
-    // Use previous state to preserve in-memory stats for on-field players
+
     setPlayerStats((prevStats) => {
-      const newStatsMap = { ...statsFromBd }
-      
-      // Ensure all on-field players have an entry
+      const mergedStats = { ...statsFromBd, ...prevStats }
+
       validOnField.forEach((onFieldItem) => {
-        if (!newStatsMap[onFieldItem.player_id]) {
-          // Preserve existing stats or initialize with defaults
-          newStatsMap[onFieldItem.player_id] = prevStats[onFieldItem.player_id] || {
-            match_id: match.id,
-            player_id: onFieldItem.player_id,
-            goals: 0,
-            shots_on_goal: 0,
-            fouls: 0,
-            yellow_cards: 0,
-            red_cards: 0,
-            minutes_played: 0,
-            saves: 0
-          }
+        if (!mergedStats[onFieldItem.player_id]) {
+          mergedStats[onFieldItem.player_id] = createEmptyMatchPlayerStat(onFieldItem.player_id)
         }
       })
-      
-      return newStatsMap
+
+      return mergedStats
     })
-    
+
     if (rival) setRivalStats(rival)
     setMatchNotes(match.notes || '')
     draftRestoreRef.current = true
@@ -163,6 +161,17 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
 
   const persistPlayerMinutes = async (playerId, extraSeconds = 0) => {
     const current = playerStats[playerId] || {}
+    const nextMinutesPlayed = (current.minutes_played ?? 0) + extraSeconds
+
+    setPlayerStats((prev) => ({
+      ...prev,
+      [playerId]: {
+        ...(prev[playerId] || createEmptyMatchPlayerStat(playerId)),
+        ...current,
+        minutes_played: nextMinutesPlayed
+      }
+    }))
+
     await api.upsertMatchPlayerStats({
       match_id: match.id,
       player_id: playerId,
@@ -171,7 +180,7 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
       fouls: current.fouls ?? 0,
       yellow_cards: current.yellow_cards ?? 0,
       red_cards: current.red_cards ?? 0,
-      minutes_played: (current.minutes_played ?? 0) + extraSeconds,
+      minutes_played: nextMinutesPlayed,
       saves: current.saves ?? 0
     })
   }
