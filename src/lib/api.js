@@ -254,23 +254,50 @@ export const api = {
     return items
   },
 
-  async createExercise({team_id,name,objective,file,category}){
+  async createExercise({team_id,name,objective,file,category,dimensions}){
     let photo_url = null
     if(file) photo_url = await uploadPhoto(file)
     try{
       if(HAS_SUPABASE){
         const { data, error } = await supabase.from('exercises').insert({team_id,name,objective,photo_url,category}).select().single()
         if(error) throw error
-        return data
+        // Supabase schema may not include `dimensions`; attach it to the returned object so UI can use it
+        return { ...data, dimensions }
       }
     }catch(e){
       console.error('Supabase error, falling back to localStorage:', e)
     }
     const items = lsGet(LS_EXERCISES)
-    const ex = {id:uid(), team_id, name, objective, photo_url, category, created_at:new Date().toISOString()}
+    const ex = {id:uid(), team_id, name, objective, photo_url, category, dimensions, created_at:new Date().toISOString()}
     items.unshift(ex)
     lsSet(LS_EXERCISES, items)
     return ex
+  },
+
+  async updateExercise(exerciseId, {name,objective,category,file,dimensions}){
+    let photo_url = null
+    if(file) photo_url = await uploadPhoto(file)
+    try{
+      if(HAS_SUPABASE){
+        const payload = { name, objective, category }
+        if(photo_url) payload.photo_url = photo_url
+        const { data, error } = await supabase.from('exercises').update(payload).eq('id', exerciseId).select().single()
+        if(error) throw error
+        return { ...data, dimensions }
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+
+    const items = lsGet(LS_EXERCISES)
+    const idx = items.findIndex(i=>i.id===exerciseId)
+    if(idx>=0){
+      items[idx] = { ...items[idx], name, objective, category, dimensions }
+      if(photo_url) items[idx].photo_url = photo_url
+      lsSet(LS_EXERCISES, items)
+      return items[idx]
+    }
+    return null
   },
 
   async deleteExercise(exerciseId){

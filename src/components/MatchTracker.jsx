@@ -15,6 +15,16 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
   const draftSaveRef = useRef(null)
   const draftKey = `tf_match_draft_${match.id}`
 
+  function StatStepper({ value, onChange, min = 0, max, onBlur }){
+    return (
+      <div className="stepper">
+        <button type="button" onClick={()=>{ const nv = Math.max(min, (Number(value)||0) - 1); onChange(nv); if(onBlur) onBlur(); }}>-</button>
+        <input type="number" value={value} onChange={(e)=>onChange(parseInt(e.target.value)||0)} onBlur={(e)=>onBlur && onBlur()} />
+        <button type="button" onClick={()=>{ const nv = typeof max === 'number' ? Math.min(max, (Number(value)||0) + 1) : (Number(value)||0) + 1; onChange(nv); if(onBlur) onBlur(); }}>+</button>
+      </div>
+    )
+  }
+
   useEffect(() => {
     loadMatchData()
   }, [match.id])
@@ -371,49 +381,19 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
                       
                       {/* Stats */}
                       <td>
-                        <input
-                          type="number"
-                          className="stat-input"
-                          value={stats.goals ?? 0}
-                          onChange={(e) => handleUpdatePlayerStat(onField.player_id, 'goals', parseInt(e.target.value) || 0)}
-                          onBlur={() => persistPlayerStats(onField.player_id)}
-                        />
+                        <StatStepper value={stats.goals ?? 0} onChange={(v)=>{handleUpdatePlayerStat(onField.player_id, 'goals', v)}} onBlur={()=>persistPlayerStats(onField.player_id)} />
                       </td>
                       <td>
-                        <input
-                          type="number"
-                          className="stat-input"
-                          value={stats.shots_on_goal ?? 0}
-                          onChange={(e) => handleUpdatePlayerStat(onField.player_id, 'shots_on_goal', parseInt(e.target.value) || 0)}
-                          onBlur={() => persistPlayerStats(onField.player_id)}
-                        />
+                        <StatStepper value={stats.shots_on_goal ?? 0} onChange={(v)=>{handleUpdatePlayerStat(onField.player_id, 'shots_on_goal', v)}} onBlur={()=>persistPlayerStats(onField.player_id)} />
                       </td>
                       <td>
-                        <input
-                          type="number"
-                          className="stat-input"
-                          value={stats.fouls ?? 0}
-                          onChange={(e) => handleUpdatePlayerStat(onField.player_id, 'fouls', parseInt(e.target.value) || 0)}
-                          onBlur={() => persistPlayerStats(onField.player_id)}
-                        />
+                        <StatStepper value={stats.fouls ?? 0} onChange={(v)=>{handleUpdatePlayerStat(onField.player_id, 'fouls', v)}} onBlur={()=>persistPlayerStats(onField.player_id)} />
                       </td>
                       <td>
-                        <input
-                          type="number"
-                          className="stat-input"
-                          value={stats.yellow_cards ?? 0}
-                          onChange={(e) => handleUpdatePlayerStat(onField.player_id, 'yellow_cards', parseInt(e.target.value) || 0)}
-                          onBlur={() => persistPlayerStats(onField.player_id)}
-                        />
+                        <StatStepper value={stats.yellow_cards ?? 0} onChange={(v)=>{handleUpdatePlayerStat(onField.player_id, 'yellow_cards', v)}} onBlur={()=>persistPlayerStats(onField.player_id)} />
                       </td>
                       <td>
-                        <input
-                          type="number"
-                          className="stat-input"
-                          value={stats.red_cards ?? 0}
-                          onChange={(e) => handleUpdatePlayerStat(onField.player_id, 'red_cards', parseInt(e.target.value) || 0)}
-                          onBlur={() => persistPlayerStats(onField.player_id)}
-                        />
+                        <StatStepper value={stats.red_cards ?? 0} onChange={(v)=>{handleUpdatePlayerStat(onField.player_id, 'red_cards', v)}} onBlur={()=>persistPlayerStats(onField.player_id)} />
                       </td>
                       <td>
                         <span className="live-time-badge">{getPlayerLiveTime(onField)}</span>
@@ -477,23 +457,23 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
           <div className="rival-stats-grid">
             <label className="rival-stat-field">
               <span>Goles</span>
-              <input type="number" value={rivalStats.goals} onChange={(e) => handleUpdateRivalStat('goals', parseInt(e.target.value) || 0)} onBlur={persistRivalStats} />
+              <StatStepper value={rivalStats.goals ?? 0} onChange={(v)=>handleUpdateRivalStat('goals', v)} onBlur={persistRivalStats} />
             </label>
             <label className="rival-stat-field">
               <span>Tiros a puerta</span>
-              <input type="number" value={rivalStats.shots_on_goal} onChange={(e) => handleUpdateRivalStat('shots_on_goal', parseInt(e.target.value) || 0)} onBlur={persistRivalStats} />
+              <StatStepper value={rivalStats.shots_on_goal ?? 0} onChange={(v)=>handleUpdateRivalStat('shots_on_goal', v)} onBlur={persistRivalStats} />
             </label>
             <label className="rival-stat-field">
               <span>Faltas</span>
-              <input type="number" value={rivalStats.fouls} onChange={(e) => handleUpdateRivalStat('fouls', parseInt(e.target.value) || 0)} onBlur={persistRivalStats} />
+              <StatStepper value={rivalStats.fouls ?? 0} onChange={(v)=>handleUpdateRivalStat('fouls', v)} onBlur={persistRivalStats} />
             </label>
             <label className="rival-stat-field">
               <span>Amarillas</span>
-              <input type="number" value={rivalStats.yellow_cards} onChange={(e) => handleUpdateRivalStat('yellow_cards', parseInt(e.target.value) || 0)} onBlur={persistRivalStats} />
+              <StatStepper value={rivalStats.yellow_cards ?? 0} onChange={(v)=>handleUpdateRivalStat('yellow_cards', v)} onBlur={persistRivalStats} />
             </label>
             <label className="rival-stat-field">
               <span>Rojas</span>
-              <input type="number" value={rivalStats.red_cards} onChange={(e) => handleUpdateRivalStat('red_cards', parseInt(e.target.value) || 0)} onBlur={persistRivalStats} />
+              <StatStepper value={rivalStats.red_cards ?? 0} onChange={(v)=>handleUpdateRivalStat('red_cards', v)} onBlur={persistRivalStats} />
             </label>
           </div>
         </div>

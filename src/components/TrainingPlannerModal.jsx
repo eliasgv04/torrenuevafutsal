@@ -104,14 +104,11 @@ export default function TrainingPlannerModal({exercises, onSave, onCancel}){
                     onChange={(e)=>updateExercise(ex.id, 'planned_count', e.target.value)}
                     placeholder="Veces"
                   />
-                  <select
+                  <input
                     value={selected[ex.id]?.dimensions ?? '40x20'}
                     onChange={(e)=>updateExercise(ex.id, 'dimensions', e.target.value)}
-                  >
-                    <option>20x20</option>
-                    <option>28x20</option>
-                    <option>40x20</option>
-                  </select>
+                    placeholder="Ej: 40x40"
+                  />
                   <input
                     value={selected[ex.id]?.notes ?? ''}
                     onChange={(e)=>updateExercise(ex.id, 'notes', e.target.value)}

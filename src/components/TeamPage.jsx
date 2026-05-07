@@ -16,6 +16,7 @@ import * as XLSX from 'xlsx'
 export default function TeamPage({team, onBack}){
   const [exercises,setExercises] = useState([])
   const [creating,setCreating] = useState(false)
+  const [editingExercise,setEditingExercise] = useState(null)
   const [registerFor,setRegisterFor] = useState(null)
   const [confirmFor,setConfirmFor] = useState(null)
   const [detailFor,setDetailFor] = useState(null)
@@ -48,6 +49,13 @@ export default function TeamPage({team, onBack}){
     const ex = await api.createExercise({...data, team_id: team.id})
     setExercises(s=>[ex,...s])
     setCreating(false)
+  }
+
+  async function onSaveEdit(data){
+    if(!editingExercise) return
+    const updated = await api.updateExercise(editingExercise.id, data)
+    setExercises((current)=>current.map(item=> item.id === editingExercise.id ? updated : item))
+    setEditingExercise(null)
   }
 
   async function loadExerciseWithRecords(exercises){
@@ -331,6 +339,7 @@ export default function TeamPage({team, onBack}){
               onAddRecord={()=>setRegisterFor(e)}
               onDelete={()=>onDeleteExercise(e)}
               onOpenDetail={()=>setDetailFor(e)}
+              onEdit={()=>setEditingExercise(e)}
             />
           ))}
         </div>
@@ -344,6 +353,7 @@ export default function TeamPage({team, onBack}){
       )}
 
       {creating && <CreateExerciseModal onCreate={onCreate} onCancel={()=>setCreating(false)} />}
+      {editingExercise && <CreateExerciseModal initial={editingExercise} onSave={onSaveEdit} onCancel={()=>setEditingExercise(null)} />}
       {creatingTraining && (
         <TrainingPlannerModal
           exercises={exercises}
@@ -377,7 +387,7 @@ export default function TeamPage({team, onBack}){
         />
       )}
       {detailFor && (
-        <ExerciseDetailModal exercise={detailFor} onClose={()=>setDetailFor(null)} />
+        <ExerciseDetailModal exercise={detailFor} onClose={()=>setDetailFor(null)} onEdit={() => { setDetailFor(null); setEditingExercise(detailFor); }} />
       )}
         </>
       )}

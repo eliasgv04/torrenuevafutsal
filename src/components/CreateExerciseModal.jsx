@@ -1,15 +1,18 @@
 import React, {useState} from 'react'
 
-export default function CreateExerciseModal({onCreate, onCancel}){
-  const [name,setName] = useState('')
-  const [objective,setObjective] = useState('')
+export default function CreateExerciseModal({onCreate, onCancel, onSave, initial}){
+  const [name,setName] = useState(initial?.name || '')
+  const [objective,setObjective] = useState(initial?.objective || '')
   const [file,setFile] = useState(null)
-  const [preview,setPreview] = useState(null)
-  const [category,setCategory] = useState('Técnica')
+  const [preview,setPreview] = useState(initial?.photo_url || null)
+  const [category,setCategory] = useState(initial?.category || 'Técnica')
+  const [dimensions,setDimensions] = useState(initial?.dimensions || '')
 
   function submit(){
     if(!name) return alert('Nombre requerido')
-    onCreate({name,objective,file,category})
+    const payload = {name,objective,file,category,dimensions}
+    if(onSave) return onSave(payload)
+    if(onCreate) return onCreate(payload)
   }
 
   function handleFile(e){
@@ -41,10 +44,12 @@ export default function CreateExerciseModal({onCreate, onCancel}){
                   <option>Ataque portero jugador</option>
 
                 </select>
+        <label>Dimensiones (ej: 40x40)</label>
+        <input value={dimensions} onChange={e=>setDimensions(e.target.value)} placeholder="Ej: 40x40" />
         <label>Foto (opcional)</label>
         <input type="file" accept="image/*" onChange={handleFile} />
         <div className="modal-buttons">
-          <button className="btn btn-primary" onClick={submit}>Crear ejercicio</button>
+          <button className="btn btn-primary" onClick={submit}>{onSave ? 'Guardar cambios' : 'Crear ejercicio'}</button>
           <button className="btn btn-cancel" onClick={onCancel}>Cancelar</button>
         </div>
       </div>

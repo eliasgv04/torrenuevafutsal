@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from 'react'
 import { api } from '../lib/api'
 
-export default function ExerciseDetailModal({exercise, onClose}){
+export default function ExerciseDetailModal({exercise, onClose, onEdit}){
   const [records,setRecords] = useState([])
 
   useEffect(()=>{
@@ -14,7 +14,10 @@ export default function ExerciseDetailModal({exercise, onClose}){
       <div className="modal-content" style={{maxWidth:760}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'start'}}>
           <h3>{exercise.name}</h3>
-          <button className="btn btn-cancel" onClick={onClose}>Cerrar</button>
+          <div style={{display:'flex',gap:8}}>
+            {onEdit && <button className="btn" onClick={()=>onEdit()}>Editar</button>}
+            <button className="btn btn-cancel" onClick={onClose}>Cerrar</button>
+          </div>
         </div>
         <p className="small">{exercise.objective}</p>
         {exercise.photo_url && <img src={exercise.photo_url} alt={exercise.name} style={{width:'100%',borderRadius:10,objectFit:'cover',marginTop:12,maxHeight:360}} />}

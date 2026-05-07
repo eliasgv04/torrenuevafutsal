@@ -218,6 +218,11 @@ main{padding:32px 24px;flex:1}
   font-size:12px;
 }
 
+.stepper{display:inline-flex;align-items:center;border-radius:8px;overflow:hidden;border:1px solid rgba(0,0,0,0.06)}
+.stepper button{background:#fff;border:none;padding:6px 8px;cursor:pointer;font-weight:700;border-right:1px solid rgba(0,0,0,0.04)}
+.stepper input{width:56px;border:0;padding:6px 8px;text-align:center;font-weight:700}
+.stepper button:active{transform:translateY(1px)}
+
 .modal-close{
   width:32px;
   height:32px;

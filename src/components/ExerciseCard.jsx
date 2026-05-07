@@ -11,7 +11,7 @@ function getCategoryColor(category){
   return colors[category] || '#666'
 }
 
-export default function ExerciseCard({exercise, onAddRecord, onDelete, onOpenDetail}){
+export default function ExerciseCard({exercise, onAddRecord, onDelete, onOpenDetail, onEdit}){
   return (
     <div className="card" onClick={(e)=>{ if(onOpenDetail) onOpenDetail(); }} style={{cursor: onOpenDetail ? 'pointer' : 'default'}}>
       {exercise.photo_url && <img src={exercise.photo_url} alt={exercise.name} />}
@@ -25,11 +25,12 @@ export default function ExerciseCard({exercise, onAddRecord, onDelete, onOpenDet
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginTop:'12px',fontSize:'13px',borderTop:'1px solid #eee',paddingTop:'12px'}}>
         <div><strong>📊 Veces:</strong> {exercise.totalCount || 0}</div>
         <div><strong>⭐ Efectividad:</strong> {exercise.effectivenessAvg !== undefined ? Math.round(exercise.effectivenessAvg) : '—'}%</div>
-        <div><strong>📐 Pista:</strong> {exercise.lastDimensions || '—'}</div>
+        <div><strong>📐 Pista:</strong> {exercise.lastDimensions || exercise.dimensions || '—'}</div>
         <div><strong>📅 Última:</strong> {exercise.lastDate ? new Date(exercise.lastDate).toLocaleDateString('es-ES') : '—'}</div>
       </div>
       <div style={{display:'flex',gap:'10px',flexWrap:'wrap',marginTop:'12px'}}>
         {onAddRecord && <button className="btn" onClick={(e)=>{e.stopPropagation(); onAddRecord()}} style={{marginTop:0,flex:'1 1 180px'}}>+ Agregar registro</button>}
+        {onEdit && <button className="btn" onClick={(e)=>{e.stopPropagation(); onEdit()}} style={{marginTop:0,flex:'1 1 120px'}}>Editar</button>}
         {onDelete && <button className="btn btn-danger" onClick={(e)=>{e.stopPropagation(); onDelete()}} style={{marginTop:0,flex:'1 1 120px'}}>Eliminar</button>}
       </div>
     </div>

@@ -18,16 +18,19 @@ export default function RegisterModal({exercise, onSave, onCancel}){
         <label>Fecha de ejecución</label>
         <input type="date" value={date} onChange={e=>setDate(e.target.value)} />
         <label>¿Cuántas veces?</label>
-        <input type="number" value={count} onChange={e=>setCount(e.target.value)} min={1} />
+        <div className="stepper">
+          <button type="button" onClick={()=>setCount(c=>Math.max(1, Number(c)-1))}>-</button>
+          <input type="number" value={count} onChange={e=>setCount(e.target.value)} min={1} />
+          <button type="button" onClick={()=>setCount(c=>Number(c)+1)}>+</button>
+        </div>
         <label>Efectividad (%)</label>
-        <input type="number" value={effectiveness} onChange={e=>setEffectiveness(e.target.value)} min={0} max={100} />
+        <div className="stepper">
+          <button type="button" onClick={()=>setEffectiveness(v=>Math.max(0, Number(v)-1))}>-</button>
+          <input type="number" value={effectiveness} onChange={e=>setEffectiveness(e.target.value)} min={0} max={100} />
+          <button type="button" onClick={()=>setEffectiveness(v=>Math.min(100, Number(v)+1))}>+</button>
+        </div>
         <label>Tamaño de pista</label>
-        <select value={dimensions} onChange={e=>setDimensions(e.target.value)}>
-          <option>20x20</option>
-          <option>40x20</option>
-          <option>28x20</option>
-
-        </select>
+        <input value={dimensions} onChange={e=>setDimensions(e.target.value)} placeholder="Ej: 40x40" />
         <label>Notas adicionales</label>
         <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="¿Cómo fue el ejercicio?" style={{minHeight:'100px'}} />
         <div className="modal-buttons">
