@@ -109,12 +109,40 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
       }
     }
 
-  setOnFieldPlayers(onField.filter((item) => players.some((p) => p.id === item.player_id)))
-    const statsMap = {}
+  const validOnField = onField.filter((item) => players.some((p) => p.id === item.player_id))
+    setOnFieldPlayers(validOnField)
+    
+    // Build statsMap from BD
+    const statsFromBd = {}
     stats.forEach((s) => {
-      statsMap[s.player_id] = s
+      statsFromBd[s.player_id] = s
     })
-    setPlayerStats(statsMap)
+    
+    // Use previous state to preserve in-memory stats for on-field players
+    setPlayerStats((prevStats) => {
+      const newStatsMap = { ...statsFromBd }
+      
+      // Ensure all on-field players have an entry
+      validOnField.forEach((onFieldItem) => {
+        if (!newStatsMap[onFieldItem.player_id]) {
+          // Preserve existing stats or initialize with defaults
+          newStatsMap[onFieldItem.player_id] = prevStats[onFieldItem.player_id] || {
+            match_id: match.id,
+            player_id: onFieldItem.player_id,
+            goals: 0,
+            shots_on_goal: 0,
+            fouls: 0,
+            yellow_cards: 0,
+            red_cards: 0,
+            minutes_played: 0,
+            saves: 0
+          }
+        }
+      })
+      
+      return newStatsMap
+    })
+    
     if (rival) setRivalStats(rival)
     setMatchNotes(match.notes || '')
     draftRestoreRef.current = true
