@@ -4,7 +4,7 @@ export default function RegisterModal({exercise, onSave, onCancel}){
   const [date,setDate] = useState(new Date().toISOString().slice(0,10))
   const [count,setCount] = useState(1)
   const [effectiveness,setEffectiveness] = useState(0)
-  const [dimensions,setDimensions] = useState('20x20')
+  const [dimensions,setDimensions] = useState(exercise?.dimensions || '')
   const [notes,setNotes] = useState('')
 
   function save(){

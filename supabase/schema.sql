@@ -14,9 +14,12 @@ create table if not exists exercises (
   name text not null,
   objective text,
   photo_url text,
-    category text,
+  category text,
   created_at timestamp with time zone default timezone('utc', now())
 );
+
+create unique index if not exists idx_exercises_team_name_unique
+  on exercises (team_id, lower(trim(name)));
 
 -- Exercise records (registrations)
 create table if not exists exercise_records (
@@ -81,6 +84,8 @@ create table if not exists player_career_stats (
   matches_played integer default 0,
   goals integer default 0,
   shots_on_goal integer default 0,
+  assists integer default 0,
+  shots_out integer default 0,
   yellow_cards integer default 0,
   red_cards integer default 0,
   minutes_played integer default 0,
@@ -111,7 +116,9 @@ create table if not exists match_player_stats (
   match_id uuid references matches(id) on delete cascade,
   player_id uuid references players(id) on delete cascade,
   goals integer default 0,
+  assists integer default 0,
   shots_on_goal integer default 0,
+  shots_out integer default 0,
   fouls integer default 0,
   yellow_cards integer default 0,
   red_cards integer default 0,

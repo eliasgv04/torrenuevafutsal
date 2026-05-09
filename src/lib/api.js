@@ -528,13 +528,15 @@ export const api = {
     return lsGet(LS_PLAYER_CAREER_STATS).find(s=>s.player_id===playerId) || null
   },
 
-  async upsertPlayerCareerStats({team_id, player_id, matches_played, goals, shots_on_goal, yellow_cards, red_cards, minutes_played, saves}){
+  async upsertPlayerCareerStats({team_id, player_id, matches_played, goals, shots_on_goal, assists, shots_out, yellow_cards, red_cards, minutes_played, saves}){
     const payload = {
       team_id,
       player_id,
       matches_played: matches_played ?? 0,
       goals: goals ?? 0,
       shots_on_goal: shots_on_goal ?? 0,
+      assists: assists ?? 0,
+      shots_out: shots_out ?? 0,
       yellow_cards: yellow_cards ?? 0,
       red_cards: red_cards ?? 0,
       minutes_played: minutes_played ?? 0,
@@ -721,12 +723,12 @@ export const api = {
       .filter(s=>s.match_id===matchId)
   },
 
-  async upsertMatchPlayerStats({match_id, player_id, goals, shots_on_goal, fouls, yellow_cards, red_cards, minutes_played, saves}){
+  async upsertMatchPlayerStats({match_id, player_id, goals, assists, shots_on_goal, shots_out, fouls, yellow_cards, red_cards, minutes_played, saves}){
     try{
       if(HAS_SUPABASE){
         const { data, error } = await supabase
           .from('match_player_stats')
-          .upsert({match_id, player_id, goals, shots_on_goal, fouls, yellow_cards, red_cards, minutes_played, saves}, {onConflict:'match_id,player_id'})
+          .upsert({match_id, player_id, goals, assists, shots_on_goal, shots_out, fouls, yellow_cards, red_cards, minutes_played, saves}, {onConflict:'match_id,player_id'})
           .select()
           .single()
         if(error) throw error
@@ -737,7 +739,7 @@ export const api = {
     }
     const stats = lsGet('tf_match_player_stats')
     const idx = stats.findIndex(s=>s.match_id===match_id && s.player_id===player_id)
-    const stat = {id:uid(), match_id, player_id, goals, shots_on_goal, fouls, yellow_cards, red_cards, minutes_played, saves, created_at: new Date().toISOString()}
+    const stat = {id:uid(), match_id, player_id, goals, assists, shots_on_goal, shots_out, fouls, yellow_cards, red_cards, minutes_played, saves, created_at: new Date().toISOString()}
     if(idx>=0) stats[idx] = stat
     else stats.push(stat)
     lsSet('tf_match_player_stats', stats)

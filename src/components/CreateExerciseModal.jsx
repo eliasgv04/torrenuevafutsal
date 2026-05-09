@@ -5,7 +5,7 @@ export default function CreateExerciseModal({onCreate, onCancel, onSave, initial
   const [objective,setObjective] = useState(initial?.objective || '')
   const [file,setFile] = useState(null)
   const [preview,setPreview] = useState(initial?.photo_url || null)
-  const [category,setCategory] = useState(initial?.category || 'Técnica')
+  const [category,setCategory] = useState(initial?.category || 'Inicio balón')
   const [dimensions,setDimensions] = useState(initial?.dimensions || '')
 
   function submit(){
@@ -34,16 +34,16 @@ export default function CreateExerciseModal({onCreate, onCancel, onSave, initial
         <input value={name} onChange={e=>setName(e.target.value)} placeholder="Ej: Bordalás" autoFocus />
         <label>Objetivo</label>
         <input value={objective} onChange={e=>setObjective(e.target.value)} placeholder="Ej: Mandar el balón a la mierda" />
-                <label>Categoría</label>
-                <select value={category} onChange={e=>setCategory(e.target.value)}>
-                  <option>Inicio balón</option>
-                  <option>Movimientos tácticos/técnicos</option>
-                  <option>Posesión</option>
-                  <option>Principal</option>
-                  <option>Defensa portero jugador</option>
-                  <option>Ataque portero jugador</option>
-
-                </select>
+        <label>Categoría</label>
+        <input value={category} onChange={e=>setCategory(e.target.value)} placeholder="Ej: inicio balón" list="exercise-categories" />
+        <datalist id="exercise-categories">
+          <option value="Inicio balón" />
+          <option value="Movimientos tácticos/técnicos" />
+          <option value="Posesión" />
+          <option value="Principal" />
+          <option value="Defensa portero jugador" />
+          <option value="Ataque portero jugador" />
+        </datalist>
         <label>Dimensiones (ej: 40x40)</label>
         <input value={dimensions} onChange={e=>setDimensions(e.target.value)} placeholder="Ej: 40x40" />
         <label>Foto (opcional)</label>

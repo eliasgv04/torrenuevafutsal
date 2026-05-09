@@ -18,6 +18,8 @@ create table if not exists player_career_stats (
   matches_played integer default 0,
   goals integer default 0,
   shots_on_goal integer default 0,
+  assists integer default 0,
+  shots_out integer default 0,
   yellow_cards integer default 0,
   red_cards integer default 0,
   minutes_played integer default 0,
@@ -46,7 +48,9 @@ create table if not exists match_player_stats (
   match_id uuid references matches(id) on delete cascade,
   player_id uuid references players(id) on delete cascade,
   goals integer default 0,
+  assists integer default 0,
   shots_on_goal integer default 0,
+  shots_out integer default 0,
   fouls integer default 0,
   yellow_cards integer default 0,
   red_cards integer default 0,
@@ -83,6 +87,28 @@ create index if not exists idx_match_player_stats_player on match_player_stats(p
 create index if not exists idx_rival_stats_match on rival_team_stats(match_id);
 create index if not exists idx_on_field_match on on_field_players(match_id);
 create index if not exists idx_on_field_player on on_field_players(player_id);
+
+-- Exercise schema upgrades
+alter table if exists exercises
+  add column if not exists category text;
+
+create unique index if not exists idx_exercises_team_name_unique
+  on exercises (team_id, lower(trim(name)));
+
+alter table if exists player_career_stats
+  add column if not exists assists integer default 0;
+
+alter table if exists player_career_stats
+  add column if not exists shots_out integer default 0;
+
+alter table if exists match_player_stats
+  add column if not exists assists integer default 0;
+
+alter table if exists match_player_stats
+  add column if not exists shots_out integer default 0;
+
+-- If your exercises table already existed, this keeps names unique per team going forward.
+-- If duplicate rows already exist, clean them manually before creating the index.
 
 -- Seed players for Torrenueva Futsal
 insert into players (team_id, name, surname, dorsal, position)

@@ -19,7 +19,9 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
     match_id: match.id,
     player_id: playerId,
     goals: 0,
+    assists: 0,
     shots_on_goal: 0,
+    shots_out: 0,
     fouls: 0,
     yellow_cards: 0,
     red_cards: 0,
@@ -176,7 +178,9 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
       match_id: match.id,
       player_id: playerId,
       goals: current.goals ?? 0,
+      assists: current.assists ?? 0,
       shots_on_goal: current.shots_on_goal ?? 0,
+      shots_out: current.shots_out ?? 0,
       fouls: current.fouls ?? 0,
       yellow_cards: current.yellow_cards ?? 0,
       red_cards: current.red_cards ?? 0,
@@ -236,7 +240,9 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
       match_id: match.id,
       player_id: playerId,
       goals: current.goals ?? 0,
+      assists: current.assists ?? 0,
       shots_on_goal: current.shots_on_goal ?? 0,
+      shots_out: current.shots_out ?? 0,
       fouls: current.fouls ?? 0,
       yellow_cards: current.yellow_cards ?? 0,
       red_cards: current.red_cards ?? 0,
@@ -252,7 +258,9 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
         match_id: match.id,
         player_id: playerId,
         goals: stats?.goals ?? 0,
+        assists: stats?.assists ?? 0,
         shots_on_goal: stats?.shots_on_goal ?? 0,
+        shots_out: stats?.shots_out ?? 0,
         fouls: stats?.fouls ?? 0,
         yellow_cards: stats?.yellow_cards ?? 0,
         red_cards: stats?.red_cards ?? 0,
@@ -389,7 +397,9 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
                   <th>Posición</th>
                   {/* Stats headers */}
                   <th>Goles</th>
+                  <th>Asist.</th>
                   <th>T.Puerta</th>
+                  <th>Fuera</th>
                   <th>Faltas</th>
                   <th>🟨</th>
                   <th>🟥</th>
@@ -421,7 +431,13 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
                         <StatStepper value={stats.goals ?? 0} onChange={(v)=>{handleUpdatePlayerStat(onField.player_id, 'goals', v)}} onBlur={()=>persistPlayerStats(onField.player_id)} />
                       </td>
                       <td>
+                        <StatStepper value={stats.assists ?? 0} onChange={(v)=>{handleUpdatePlayerStat(onField.player_id, 'assists', v)}} onBlur={()=>persistPlayerStats(onField.player_id)} />
+                      </td>
+                      <td>
                         <StatStepper value={stats.shots_on_goal ?? 0} onChange={(v)=>{handleUpdatePlayerStat(onField.player_id, 'shots_on_goal', v)}} onBlur={()=>persistPlayerStats(onField.player_id)} />
+                      </td>
+                      <td>
+                        <StatStepper value={stats.shots_out ?? 0} onChange={(v)=>{handleUpdatePlayerStat(onField.player_id, 'shots_out', v)}} onBlur={()=>persistPlayerStats(onField.player_id)} />
                       </td>
                       <td>
                         <StatStepper value={stats.fouls ?? 0} onChange={(v)=>{handleUpdatePlayerStat(onField.player_id, 'fouls', v)}} onBlur={()=>persistPlayerStats(onField.player_id)} />

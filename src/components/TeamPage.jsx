@@ -35,6 +35,17 @@ export default function TeamPage({team, onBack}){
   const [trainingDateFrom,setTrainingDateFrom] = useState('')
   const [trainingDateTo,setTrainingDateTo] = useState('')
 
+  const normalizeExerciseName = (value) => String(value || '').trim().toLowerCase()
+
+  function isDuplicateExerciseName(name, currentExerciseId = null){
+    const normalizedName = normalizeExerciseName(name)
+    if(!normalizedName) return false
+    return exercises.some((exercise) => {
+      if(currentExerciseId && exercise.id === currentExerciseId) return false
+      return normalizeExerciseName(exercise.name) === normalizedName
+    })
+  }
+
   useEffect(()=>{
     if(!team) return
     api.getExercises(team.id).then(setExercises)
@@ -46,6 +57,10 @@ export default function TeamPage({team, onBack}){
   },[exercises.length])
 
   async function onCreate(data){
+    if(isDuplicateExerciseName(data.name)){
+      alert('Ya existe un ejercicio con ese nombre. Usa otro distinto.')
+      return
+    }
     const ex = await api.createExercise({...data, team_id: team.id})
     setExercises(s=>[ex,...s])
     setCreating(false)
@@ -53,6 +68,10 @@ export default function TeamPage({team, onBack}){
 
   async function onSaveEdit(data){
     if(!editingExercise) return
+    if(isDuplicateExerciseName(data.name, editingExercise.id)){
+      alert('Ya existe un ejercicio con ese nombre. Usa otro distinto.')
+      return
+    }
     const updated = await api.updateExercise(editingExercise.id, data)
     setExercises((current)=>current.map(item=> item.id === editingExercise.id ? updated : item))
     setEditingExercise(null)
