@@ -132,6 +132,14 @@ export default function TeamPage({team, onBack}){
     })
   }
 
+  function exportSingleTraining(training){
+    if(!training){
+      alert('No hay datos para exportar')
+      return
+    }
+    exportTrainingToPdf(training, players, team.name)
+  }
+
   function exportTrainingsToExcel(){
     const dataForExport = filteredTrainings.length > 0 ? filteredTrainings : trainings
     if(dataForExport.length === 0){
@@ -357,8 +365,7 @@ export default function TeamPage({team, onBack}){
         <TrainingHistoryModal
           trainings={filteredTrainings}
           onClose={()=>setShowTrainingHistory(false)}
-          onExportPdf={exportTrainingsToPdf}
-          onExportExcel={exportTrainingsToExcel}
+          onExportTraining={exportSingleTraining}
         />
       )}
       {showDashboard && (
