@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react'
 import ExerciseCard from './ExerciseCard'
 import { api } from '../lib/api'
+import { exportTrainingToPdf } from '../lib/pdfExport'
 import CreateExerciseModal from './CreateExerciseModal'
 import RegisterModal from './RegisterModal'
 import ConfirmModal from './ConfirmModal'
@@ -9,8 +10,6 @@ import TrainingPlannerModal from './TrainingPlannerModal'
 import TrainingHistoryModal from './TrainingHistoryModal'
 import TeamDashboardModal from './TeamDashboardModal'
 import FutsalPage from './FutsalPage'
-import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
 
 export default function TeamPage({team, onBack}){
@@ -25,6 +24,7 @@ export default function TeamPage({team, onBack}){
   const [showDashboard,setShowDashboard] = useState(false)
   const [showFutsal, setShowFutsal] = useState(false)
   const [trainings,setTrainings] = useState([])
+  const [players, setPlayers] = useState([])
   const [showExerciseFilters,setShowExerciseFilters] = useState(false)
   const [showTrainingFilters,setShowTrainingFilters] = useState(false)
   const [searchText,setSearchText] = useState('')
@@ -49,6 +49,7 @@ export default function TeamPage({team, onBack}){
   useEffect(()=>{
     if(!team) return
     api.getExercises(team.id).then(setExercises)
+    api.getPlayers(team.id).then(setPlayers)
     loadTrainingHistory(team.id)
   },[team])
   useEffect(()=>{
@@ -125,39 +126,10 @@ export default function TeamPage({team, onBack}){
       return
     }
 
-    const doc = new jsPDF()
-    doc.setFontSize(16)
-    doc.text(`Entrenamientos - ${team.name}`, 14, 16)
-
-    const rows = []
+    // Export each training as an individual professional PDF
     dataForExport.forEach((training)=>{
-      const date = new Date(training.training_date).toLocaleDateString('es-ES')
-      ;(training.items || []).forEach((item)=>{
-        rows.push([
-          date,
-          item.exercise_name || '-',
-          item.category || '-',
-          item.planned_count ?? '-',
-          item.dimensions || '-',
-          item.objective || '-',
-          item.notes || '-',
-          training.notes || '-'
-        ])
-      })
-      if(!training.items?.length){
-        rows.push([date, '-', '-', '-', '-', '-', '-', training.notes || '-'])
-      }
+      exportTrainingToPdf(training, players, team.name)
     })
-
-    autoTable(doc, {
-      startY: 24,
-      head: [['Fecha', 'Ejercicio', 'Categoría', 'Veces', 'Dimensiones', 'Objetivo', 'Notas ejercicio', 'Notas entrenamiento']],
-      body: rows,
-      styles: {fontSize: 8}
-    })
-
-    const safeTeam = team.name.replace(/\s+/g, '_')
-    doc.save(`entrenamientos_${safeTeam}.pdf`)
   }
 
   function exportTrainingsToExcel(){
@@ -376,6 +348,7 @@ export default function TeamPage({team, onBack}){
       {creatingTraining && (
         <TrainingPlannerModal
           exercises={exercises}
+          players={players}
           onSave={onCreateTraining}
           onCancel={()=>setCreatingTraining(false)}
         />

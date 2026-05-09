@@ -1,9 +1,17 @@
 import React, {useMemo, useState} from 'react'
 
-export default function TrainingPlannerModal({exercises, onSave, onCancel}){
+export default function TrainingPlannerModal({exercises, players, onSave, onCancel}){
   const [trainingDate, setTrainingDate] = useState(new Date().toISOString().slice(0,10))
   const [notes, setNotes] = useState('')
   const [selected, setSelected] = useState({})
+  const [selectedPlayers, setSelectedPlayers] = useState({})
+  const [objectives, setObjectives] = useState({
+    fisicos: '',
+    tecnicos: '',
+    tacticos: '',
+    psicologicos: ''
+  })
+  const [warmup, setWarmup] = useState('')
 
   const selectedCount = useMemo(
     ()=>Object.values(selected).filter(item=>item.selected).length,
@@ -59,9 +67,14 @@ export default function TrainingPlannerModal({exercises, onSave, onCancel}){
     onSave({
       training_date: trainingDate,
       notes,
-      items
+      items,
+      selected_players: Object.keys(selectedPlayers).filter(id => selectedPlayers[id]),
+      objectives,
+      warmup
     })
   }
+
+  const playersCount = Object.values(selectedPlayers).filter(Boolean).length
 
   return (
     <div className="modal-overlay">
@@ -69,6 +82,31 @@ export default function TrainingPlannerModal({exercises, onSave, onCancel}){
         <h3>🗓️ Planificar entrenamiento</h3>
         <label>Fecha</label>
         <input type="date" value={trainingDate} onChange={(e)=>setTrainingDate(e.target.value)} />
+
+        <label style={{marginTop: '12px'}}>Jugadores ({playersCount} seleccionados)</label>
+        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:'6px', marginBottom:'12px', maxHeight:'100px', overflowY:'auto', border:'1px solid #ddd', padding:'8px', borderRadius:'4px'}}>
+          {players && players.map((player) => (
+            <label key={player.id} style={{display:'flex', alignItems:'center', gap:'6px', margin:0, fontSize:'11px'}}>
+              <input
+                type="checkbox"
+                checked={Boolean(selectedPlayers[player.id])}
+                onChange={(e) => setSelectedPlayers((prev) => ({ ...prev, [player.id]: e.target.checked }))}
+              />
+              #{player.dorsal} {player.name}
+            </label>
+          ))}
+        </div>
+
+        <label style={{marginTop: '12px'}}>Objetivos de la sesión (opcional)</label>
+        <div style={{fontSize:'11px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'12px'}}>
+          <textarea value={objectives.fisicos} onChange={(e) => setObjectives({...objectives, fisicos: e.target.value})} placeholder="Objetivos físicos" style={{minHeight:'50px'}} />
+          <textarea value={objectives.tecnicos} onChange={(e) => setObjectives({...objectives, tecnicos: e.target.value})} placeholder="Objetivos técnicos" style={{minHeight:'50px'}} />
+          <textarea value={objectives.tacticos} onChange={(e) => setObjectives({...objectives, tacticos: e.target.value})} placeholder="Tácticos/Estrategia" style={{minHeight:'50px'}} />
+          <textarea value={objectives.psicologicos} onChange={(e) => setObjectives({...objectives, psicologicos: e.target.value})} placeholder="Psicológicos" style={{minHeight:'50px'}} />
+        </div>
+
+        <label>Calentamiento (opcional)</label>
+        <textarea value={warmup} onChange={(e) => setWarmup(e.target.value)} placeholder="Describe el calentamiento..." style={{minHeight:'50px', marginBottom:'12px'}} />
 
         <label>Notas del entrenamiento (opcional)</label>
         <textarea

@@ -387,12 +387,12 @@ export const api = {
       .sort((a,b)=>(a.order_index ?? 0) - (b.order_index ?? 0))
   },
 
-  async createTraining({team_id, training_date, notes, items}){
+  async createTraining({team_id, training_date, notes, items, selected_players, objectives, warmup}){
     try{
       if(HAS_SUPABASE){
         const { data: training, error: trainingError } = await supabase
           .from('trainings')
-          .insert({team_id, training_date, notes})
+          .insert({team_id, training_date, notes, attending_players: selected_players || [], objectives: objectives || {}, warmup: warmup || ''})
           .select()
           .single()
         if(trainingError) throw trainingError
@@ -426,6 +426,9 @@ export const api = {
       team_id,
       training_date,
       notes: notes || '',
+      attending_players: selected_players || [],
+      objectives: objectives || {},
+      warmup: warmup || '',
       created_at: new Date().toISOString()
     }
     trainings.unshift(training)

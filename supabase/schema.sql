@@ -39,6 +39,9 @@ create table if not exists trainings (
   team_id uuid references teams(id) on delete cascade,
   training_date date not null,
   notes text,
+  attending_players jsonb,
+  objectives jsonb,
+  warmup text,
   created_at timestamp with time zone default timezone('utc', now())
 );
 
