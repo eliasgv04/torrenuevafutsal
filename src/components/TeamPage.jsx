@@ -119,20 +119,21 @@ export default function TeamPage({team, onBack}){
     setCreatingTraining(false)
   }
 
-  function exportTrainingsToPdf(){
+  async function exportTrainingsToPdf(){
     const dataForExport = filteredTrainings.length > 0 ? filteredTrainings : trainings
     if(dataForExport.length === 0){
       alert('No hay entrenamientos para exportar')
       return
     }
-
-    // Export each training as an individual professional PDF
-    dataForExport.forEach((training)=>{
-      exportTrainingToPdf(training, players, team.name)
-    })
+    try{
+      await Promise.all(dataForExport.map(t => exportTrainingToPdf(t, players, team.name)))
+    }catch(e){
+      console.error('Error exporting trainings:', e)
+      alert('Error al exportar entrenamientos: ' + (e.message || e))
+    }
   }
 
-  function exportSingleTraining(training){
+  async function exportSingleTraining(training){
     try {
       console.log('Exportando entrenamiento:', training)
       if(!training){
@@ -148,10 +149,10 @@ export default function TeamPage({team, onBack}){
         return
       }
       console.log('Llamando a exportTrainingToPdf con:', {training, players, teamName: team.name})
-      exportTrainingToPdf(training, players, team.name)
+      await exportTrainingToPdf(training, players, team.name)
     } catch (error) {
       console.error('Error en exportSingleTraining:', error)
-      alert('Error al exportar: ' + error.message)
+      alert('Error al exportar: ' + (error.message || error))
     }
   }
 
