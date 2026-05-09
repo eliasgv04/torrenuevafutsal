@@ -133,11 +133,26 @@ export default function TeamPage({team, onBack}){
   }
 
   function exportSingleTraining(training){
-    if(!training){
-      alert('No hay datos para exportar')
-      return
+    try {
+      console.log('Exportando entrenamiento:', training)
+      if(!training){
+        alert('No hay datos para exportar')
+        return
+      }
+      if(!training.training_date){
+        alert('El entrenamiento no tiene fecha')
+        return
+      }
+      if(!training.items || training.items.length === 0){
+        alert('El entrenamiento no tiene ejercicios')
+        return
+      }
+      console.log('Llamando a exportTrainingToPdf con:', {training, players, teamName: team.name})
+      exportTrainingToPdf(training, players, team.name)
+    } catch (error) {
+      console.error('Error en exportSingleTraining:', error)
+      alert('Error al exportar: ' + error.message)
     }
-    exportTrainingToPdf(training, players, team.name)
   }
 
   function exportTrainingsToExcel(){
