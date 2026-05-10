@@ -616,6 +616,55 @@ label{
 }
 
 .modal-buttons .btn{
+
+  .confirm-dialog-overlay{
+    position:fixed;
+    top:0;
+    left:0;
+    right:0;
+    bottom:0;
+    background:rgba(0,0,0,0.5);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:10000;
+    animation:fadeIn 0.2s ease-out;
+  }
+
+  .confirm-dialog-content{
+    background:#fff;
+    border-radius:12px;
+    padding:28px 24px;
+    max-width:400px;
+    width:90%;
+    box-shadow:0 20px 60px rgba(0,0,0,0.3);
+    animation:scaleIn 0.2s ease-out;
+  }
+
+  .confirm-dialog-message{
+    color:var(--text-dark);
+    font-size:16px;
+    font-weight:600;
+    line-height:1.6;
+    margin-bottom:24px;
+    text-align:center;
+  }
+
+  .confirm-dialog-buttons{
+    display:flex;
+    gap:12px;
+  }
+
+  .confirm-dialog-buttons button{
+    flex:1;
+    padding:10px 16px;
+    border:none;
+    border-radius:6px;
+    font-weight:600;
+    cursor:pointer;
+    transition:all 0.2s ease;
+  }
+
   flex:1;
   margin:0;
   text-align:center;
@@ -704,6 +753,11 @@ label{
 @keyframes float{
   0%,100%{transform:translateY(0px)}
   50%{transform:translateY(-10px)}
+}
+
+@keyframes pulse{
+  0%,100%{opacity:1}
+  50%{opacity:0.7}
 }
 
 @media (max-width:600px){
@@ -1594,6 +1648,26 @@ label{
 .btn-small-action:hover{
   transform:translateY(-1px);
   box-shadow:0 2px 6px rgba(31,111,35,0.3);
+.btn-small-action-delete{
+  background:#ff6b6b;
+  color:#fff;
+  border:none;
+  border-radius:3px;
+  padding:2px 6px;
+  font-size:10px;
+  font-weight:600;
+  cursor:pointer;
+  transition:all 0.2s ease;
+  white-space:nowrap;
+  line-height:1;
+}
+
+.btn-small-action-delete:hover{
+  background:#ff5252;
+  transform:translateY(-1px);
+  box-shadow:0 2px 6px rgba(255,107,107,0.3);
+}
+
 }
 
 .live-time-badge{

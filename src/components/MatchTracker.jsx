@@ -10,6 +10,8 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
   const [isChronoRunning, setIsChronoRunning] = useState(false)
   const [showPlayerSelector, setShowPlayerSelector] = useState(false)
   const [selectedPlayerForChange, setSelectedPlayerForChange] = useState(null)
+  const [isProcessingSubstitution, setIsProcessingSubstitution] = useState(false)
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, message: '', onConfirm: null, onCancel: null })
   const chronoIntervalRef = useRef(null)
   const draftRestoreRef = useRef(false)
   const draftSaveRef = useRef(null)
@@ -231,19 +233,29 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
   }
 
   const handleRemovePlayerFromQuintet = async (onFieldId) => {
-    try {
-      if (!confirm('¿Eliminar jugador del quinteto?')) return
-      const onField = onFieldPlayers.find((item) => item.id === onFieldId)
-      if (onField) {
-        const playedSeconds = Math.max(0, chrono - (onField.entry_minute ?? 0))
-        await persistPlayerMinutes(onField.player_id, playedSeconds)
+    setConfirmDialog({
+      isOpen: true,
+      message: '¿Eliminar jugador del quinteto?',
+      onConfirm: async () => {
+        try {
+          const onField = onFieldPlayers.find((item) => item.id === onFieldId)
+          if (onField) {
+            const playedSeconds = Math.max(0, chrono - (onField.entry_minute ?? 0))
+            await persistPlayerMinutes(onField.player_id, playedSeconds)
+          }
+          await api.setPlayerOffField(onFieldId, chrono)
+          await loadMatchData()
+          setConfirmDialog({ isOpen: false, message: '', onConfirm: null, onCancel: null })
+        } catch (error) {
+          console.error('Error removing player from field:', error)
+          alert('Error al eliminar jugador: ' + error.message)
+          setConfirmDialog({ isOpen: false, message: '', onConfirm: null, onCancel: null })
+        }
+      },
+      onCancel: () => {
+        setConfirmDialog({ isOpen: false, message: '', onConfirm: null, onCancel: null })
       }
-      await api.setPlayerOffField(onFieldId, chrono)
-      await loadMatchData()
-    } catch (error) {
-      console.error('Error removing player from field:', error)
-      alert('Error al eliminar jugador: ' + error.message)
-    }
+    })
   }
 
   const handleRemovePlayerFromField = async (onFieldId) => {
@@ -257,16 +269,25 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
   }
 
   const handleSubstitution = async (outOnFieldId, inPlayerId) => {
-    if (!outOnFieldId || !inPlayerId) return
-    const outgoing = onFieldPlayers.find((item) => item.id === outOnFieldId)
-    if (outgoing) {
-      const playedSeconds = Math.max(0, chrono - (outgoing.entry_minute ?? 0))
-      await persistPlayerMinutes(outgoing.player_id, playedSeconds)
+    if (!outOnFieldId || !inPlayerId || isProcessingSubstitution) return
+    
+    try {
+      setIsProcessingSubstitution(true)
+      const outgoing = onFieldPlayers.find((item) => item.id === outOnFieldId)
+      if (outgoing) {
+        const playedSeconds = Math.max(0, chrono - (outgoing.entry_minute ?? 0))
+        await persistPlayerMinutes(outgoing.player_id, playedSeconds)
+      }
+      await api.setPlayerOffField(outOnFieldId, chrono)
+      await api.setPlayerOnField({ match_id: match.id, player_id: inPlayerId, entry_minute: chrono })
+      await loadMatchData()
+      setSelectedPlayerForChange(null)
+    } catch (error) {
+      console.error('Error during substitution:', error)
+      alert('Error al realizar cambio: ' + error.message)
+    } finally {
+      setIsProcessingSubstitution(false)
     }
-    await api.setPlayerOffField(outOnFieldId, chrono)
-    await api.setPlayerOnField({ match_id: match.id, player_id: inPlayerId, entry_minute: chrono })
-    loadMatchData()
-    setSelectedPlayerForChange(null)
   }
 
   const handleUpdatePlayerStat = async (playerId, stat, value) => {
@@ -370,45 +391,53 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
   const awayScore = isHome ? totalRivalGoals : totalTeamGoals
 
   const handleFinalizeMatch = async () => {
-    if (!confirm(`¿Finalizar partido? ${isHome ? 'Torrenueva' : match.rival_team_name} ${homeScore} - ${awayScore} ${isHome ? match.rival_team_name : 'Torrenueva'}`)) {
-      return
-    }
+    setConfirmDialog({
+      isOpen: true,
+      message: `¿Finalizar partido?
+${isHome ? 'Torrenueva' : match.rival_team_name} ${homeScore} - ${awayScore} ${isHome ? match.rival_team_name : 'Torrenueva'}`,
+      onConfirm: async () => {
+        try {
+          setIsChronoRunning(false)
+          console.log('Saving all match data before finalize...')
 
-    try {
-      setIsChronoRunning(false)
-      console.log('Saving all match data before finalize...')
+          // Save all stats with error handling
+          await persistAllPlayerStats()
+          console.log('Player stats saved')
+          
+          await persistRivalStats()
+          console.log('Rival stats saved')
 
-      // Save all stats with error handling
-      await persistAllPlayerStats()
-      console.log('Player stats saved')
-      
-      await persistRivalStats()
-      console.log('Rival stats saved')
+          const activePlayers = onFieldPlayers.filter((item) => item.exit_minute === null)
+          for (const active of activePlayers) {
+            const playedSeconds = Math.max(0, chrono - (active.entry_minute ?? 0))
+            await persistPlayerMinutes(active.player_id, playedSeconds)
+            await api.setPlayerOffField(active.id, chrono)
+          }
+          console.log('Final player minutes saved')
 
-      const activePlayers = onFieldPlayers.filter((item) => item.exit_minute === null)
-      for (const active of activePlayers) {
-        const playedSeconds = Math.max(0, chrono - (active.entry_minute ?? 0))
-        await persistPlayerMinutes(active.player_id, playedSeconds)
-        await api.setPlayerOffField(active.id, chrono)
+          await api.finalizeMatch({
+            match_id: match.id,
+            home_goals: homeScore,
+            away_goals: awayScore,
+            notes: matchNotes,
+            ended_at: new Date().toISOString()
+          })
+          console.log('Match finalized successfully')
+
+          localStorage.removeItem(draftKey)
+          alert('Partido finalizado correctamente')
+          onClose()
+          setConfirmDialog({ isOpen: false, message: '', onConfirm: null, onCancel: null })
+        } catch (error) {
+          console.error('Error finalizing match:', error)
+          alert('Error al finalizar partido: ' + error.message)
+          setConfirmDialog({ isOpen: false, message: '', onConfirm: null, onCancel: null })
+        }
+      },
+      onCancel: () => {
+        setConfirmDialog({ isOpen: false, message: '', onConfirm: null, onCancel: null })
       }
-      console.log('Final player minutes saved')
-
-      await api.finalizeMatch({
-        match_id: match.id,
-        home_goals: homeScore,
-        away_goals: awayScore,
-        notes: matchNotes,
-        ended_at: new Date().toISOString()
-      })
-      console.log('Match finalized successfully')
-
-      localStorage.removeItem(draftKey)
-      alert('Partido finalizado correctamente')
-      onClose()
-    } catch (error) {
-      console.error('Error finalizing match:', error)
-      alert('Error al finalizar partido: ' + error.message)
-    }
+    })
   }
 
   return (
@@ -432,9 +461,9 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
         {/* Global Chrono */}
         <div className="chrono-section">
           <div className="chrono-title-row">
-            <h3>Tiempo parado</h3>
+            <h3>Tiempo del partido {isChronoRunning && '▶️ EN DIRECTO'}</h3>
           </div>
-          <div className="chrono-display">{formatChrono(chrono)}</div>
+          <div className="chrono-display" style={{ animation: isChronoRunning ? 'pulse 1s infinite' : 'none', color: isChronoRunning ? '#2ecc71' : '#333' }}>{formatChrono(chrono)}</div>
           <div className="chrono-actions">
             <button
               className={`btn-chrono ${isChronoRunning ? 'running' : ''}`}
@@ -530,7 +559,7 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
                         <button className="btn-small-action" onClick={() => setSelectedPlayerForChange(onField.id)}>
                           Cambiar
                         </button>
-                        <button className="btn-small-action btn-danger" onClick={() => handleRemovePlayerFromQuintet(onField.id)} title="Eliminar del quinteto">
+                        <button className="btn-small-action-delete" onClick={() => handleRemovePlayerFromQuintet(onField.id)} title="Eliminar del quinteto">
                           ✕
                         </button>
                       </td>
@@ -565,18 +594,19 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
         {/* Substitution Selection */}
         {selectedPlayerForChange && (
           <div className="substitution-modal">
-            <h4>¿Con quién cambiar?</h4>
+            <h4>¿Con quién cambiar? {isProcessingSubstitution && '(procesando...)'}</h4>
             <div className="substitution-list">
               {benchPlayers.map((player) => (
                 <button
                   key={player.id}
                   onClick={() => handleSubstitution(selectedPlayerForChange, player.id)}
+                  disabled={isProcessingSubstitution}
                 >
                   #{player.dorsal} {player.name}
                 </button>
               ))}
             </div>
-            <button className="btn-secondary" onClick={() => setSelectedPlayerForChange(null)}>
+            <button className="btn-secondary" onClick={() => setSelectedPlayerForChange(null)} disabled={isProcessingSubstitution}>
               Cancelar
             </button>
           </div>
@@ -625,6 +655,27 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
             placeholder="Escribe aquí observaciones del partido..."
           />
         </div>
+
+          {/* Custom Confirmation Dialog */}
+          {confirmDialog.isOpen && (
+            <div className="confirm-dialog-overlay" onClick={() => confirmDialog.onCancel?.()}>
+              <div className="confirm-dialog-content" onClick={(e) => e.stopPropagation()}>
+                <div className="confirm-dialog-message">
+                  {confirmDialog.message.split('\n').map((line, i) => (
+                    <div key={i}>{line}</div>
+                  ))}
+                </div>
+                <div className="confirm-dialog-buttons">
+                  <button className="btn-secondary" onClick={() => confirmDialog.onCancel?.()}>
+                    Cancelar
+                  </button>
+                  <button className="btn-danger" onClick={() => confirmDialog.onConfirm?.()}>
+                    Confirmar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
       </div>
     </div>
   )
