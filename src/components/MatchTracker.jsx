@@ -18,6 +18,67 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
   const draftSaveRef = useRef(null)
   const draftKey = `tf_match_draft_${match.id}`
 
+  const deleteButtonStyle = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '30px',
+    height: '30px',
+    marginLeft: '6px',
+    border: '1px solid rgba(200,69,69,0.35)',
+    borderRadius: '999px',
+    background: '#fff',
+    color: '#c84545',
+    fontSize: '16px',
+    fontWeight: 700,
+    lineHeight: 1,
+    cursor: 'pointer',
+    transition: 'transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, color 0.18s ease, border-color 0.18s ease'
+  }
+
+  const confirmDialogStyles = {
+    overlay: {
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(11,11,11,0.55)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 10000,
+      backdropFilter: 'blur(3px)'
+    },
+    content: {
+      background: 'linear-gradient(180deg, #ffffff 0%, #f8fbf7 100%)',
+      border: '1px solid rgba(31,111,35,0.12)',
+      borderRadius: '18px',
+      padding: '26px 24px 22px',
+      width: 'min(420px, calc(100vw - 32px))',
+      boxShadow: '0 24px 70px rgba(0,0,0,0.28)'
+    },
+    message: {
+      color: 'var(--text-dark)',
+      fontSize: '16px',
+      fontWeight: 700,
+      lineHeight: 1.5,
+      marginBottom: '22px',
+      textAlign: 'center',
+      whiteSpace: 'pre-line'
+    },
+    buttons: {
+      display: 'flex',
+      gap: '10px'
+    },
+    button: {
+      flex: 1,
+      minHeight: '42px',
+      padding: '10px 16px',
+      border: 'none',
+      borderRadius: '10px',
+      fontWeight: 700,
+      cursor: 'pointer'
+    }
+  }
+
   const createEmptyMatchPlayerStat = (playerId) => ({
     match_id: match.id,
     player_id: playerId,
@@ -602,7 +663,33 @@ ${isHome ? 'Torrenueva' : match.rival_team_name} ${homeScore} - ${awayScore} ${i
                         <button className="btn-small-action" onClick={() => setSelectedPlayerForChange(onField.id)}>
                           Cambiar
                         </button>
-                        <button className="btn-small-action-delete" onClick={() => handleRemovePlayerFromQuintet(onField.id)} title="Eliminar del quinteto">
+                        <button
+                          type="button"
+                          style={deleteButtonStyle}
+                          onMouseEnter={(event) => {
+                            event.currentTarget.style.background = '#ffecec'
+                            event.currentTarget.style.color = '#a82d2d'
+                            event.currentTarget.style.borderColor = 'rgba(200,69,69,0.55)'
+                            event.currentTarget.style.transform = 'translateY(-1px) scale(1.03)'
+                            event.currentTarget.style.boxShadow = '0 6px 14px rgba(200,69,69,0.16)'
+                          }}
+                          onMouseLeave={(event) => {
+                            event.currentTarget.style.background = '#fff'
+                            event.currentTarget.style.color = '#c84545'
+                            event.currentTarget.style.borderColor = 'rgba(200,69,69,0.35)'
+                            event.currentTarget.style.transform = 'none'
+                            event.currentTarget.style.boxShadow = 'none'
+                          }}
+                          onMouseDown={(event) => {
+                            event.currentTarget.style.transform = 'translateY(0) scale(0.98)'
+                          }}
+                          onMouseUp={(event) => {
+                            event.currentTarget.style.transform = 'translateY(-1px) scale(1.03)'
+                          }}
+                          onClick={() => handleRemovePlayerFromQuintet(onField.id)}
+                          title="Eliminar del quinteto"
+                          aria-label="Eliminar del quinteto"
+                        >
                           ✕
                         </button>
                       </td>
@@ -701,18 +788,18 @@ ${isHome ? 'Torrenueva' : match.rival_team_name} ${homeScore} - ${awayScore} ${i
 
           {/* Custom Confirmation Dialog */}
           {confirmDialog.isOpen && (
-            <div className="confirm-dialog-overlay" onClick={() => confirmDialog.onCancel?.()}>
-              <div className="confirm-dialog-content" onClick={(e) => e.stopPropagation()}>
-                <div className="confirm-dialog-message">
+            <div style={confirmDialogStyles.overlay} onClick={() => confirmDialog.onCancel?.()}>
+              <div style={confirmDialogStyles.content} onClick={(e) => e.stopPropagation()}>
+                <div style={confirmDialogStyles.message}>
                   {confirmDialog.message.split('\n').map((line, i) => (
                     <div key={i}>{line}</div>
                   ))}
                 </div>
-                <div className="confirm-dialog-buttons">
-                  <button className="btn-secondary" onClick={() => confirmDialog.onCancel?.()}>
+                <div style={confirmDialogStyles.buttons}>
+                  <button className="btn-secondary" style={confirmDialogStyles.button} onClick={() => confirmDialog.onCancel?.()}>
                     Cancelar
                   </button>
-                  <button className="btn-danger" onClick={() => confirmDialog.onConfirm?.()}>
+                  <button className="btn-danger" style={confirmDialogStyles.button} onClick={() => confirmDialog.onConfirm?.()}>
                     Confirmar
                   </button>
                 </div>
