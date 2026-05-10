@@ -95,57 +95,73 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
   }, [chrono, isChronoRunning, onFieldPlayers, playerStats, rivalStats, matchNotes, selectedPlayerForChange, draftKey])
 
   const loadMatchData = async () => {
-    const [onField, stats, rival] = await Promise.all([
-      api.getOnFieldPlayers(match.id),
-      api.getMatchPlayerStats(match.id),
-      api.getRivalTeamStats(match.id)
-    ])
+    try {
+      const [onField, stats, rival] = await Promise.all([
+        api.getOnFieldPlayers(match.id),
+        api.getMatchPlayerStats(match.id),
+        api.getRivalTeamStats(match.id)
+      ])
 
-    const draftRaw = localStorage.getItem(draftKey)
-    if (!draftRestoreRef.current && draftRaw) {
-      try {
-        const draft = JSON.parse(draftRaw)
-        const draftAge = Date.now() - (draft.savedAt || Date.now())
-        const validDraftOnField = Array.isArray(draft.onFieldPlayers)
-          ? draft.onFieldPlayers.filter((item) => players.some((p) => p.id === item.player_id))
-          : onField
-        setChrono((draft.chrono ?? 0) + (draft.isChronoRunning ? Math.floor(draftAge / 1000) : 0))
-        setIsChronoRunning(Boolean(draft.isChronoRunning))
-        setOnFieldPlayers(validDraftOnField)
-        setPlayerStats(draft.playerStats || {})
-        if (draft.rivalStats) setRivalStats(draft.rivalStats)
-        if (typeof draft.matchNotes === 'string') setMatchNotes(draft.matchNotes)
-        setSelectedPlayerForChange(draft.selectedPlayerForChange || null)
-        draftRestoreRef.current = true
-        return
-      } catch (error) {
-        console.warn('Invalid match draft, falling back to persisted data', error)
-      }
-    }
-
-    const validOnField = onField.filter((item) => players.some((p) => p.id === item.player_id))
-    setOnFieldPlayers(validOnField)
-
-    const statsFromBd = {}
-    stats.forEach((s) => {
-      statsFromBd[s.player_id] = s
-    })
-
-    setPlayerStats((prevStats) => {
-      const mergedStats = { ...statsFromBd, ...prevStats }
-
-      validOnField.forEach((onFieldItem) => {
-        if (!mergedStats[onFieldItem.player_id]) {
-          mergedStats[onFieldItem.player_id] = createEmptyMatchPlayerStat(onFieldItem.player_id)
+      const draftRaw = localStorage.getItem(draftKey)
+      if (!draftRestoreRef.current && draftRaw) {
+        try {
+          const draft = JSON.parse(draftRaw)
+          const draftAge = Date.now() - (draft.savedAt || Date.now())
+          const validDraftOnField = Array.isArray(draft.onFieldPlayers)
+            ? draft.onFieldPlayers.filter((item) => players.some((p) => p.id === item.player_id))
+            : onField
+          setChrono((draft.chrono ?? 0) + (draft.isChronoRunning ? Math.floor(draftAge / 1000) : 0))
+          setIsChronoRunning(Boolean(draft.isChronoRunning))
+          setOnFieldPlayers(validDraftOnField)
+          setPlayerStats(draft.playerStats || {})
+          // Merge with BD stats: BD data wins if draft is missing data
+          if(rival && (!draft.rivalStats || Object.keys(draft.rivalStats).length === 0)) {
+            setRivalStats({goals: rival.goals ?? 0, shots_on_goal: rival.shots_on_goal ?? 0, fouls: rival.fouls ?? 0, yellow_cards: rival.yellow_cards ?? 0, red_cards: rival.red_cards ?? 0})
+          } else if(draft.rivalStats) {
+            setRivalStats(draft.rivalStats)
+          }
+          if (typeof draft.matchNotes === 'string') setMatchNotes(draft.matchNotes)
+          setSelectedPlayerForChange(draft.selectedPlayerForChange || null)
+          draftRestoreRef.current = true
+          return
+        } catch (error) {
+          console.warn('Invalid match draft, falling back to persisted data', error)
         }
+      }
+
+      const validOnField = onField.filter((item) => players.some((p) => p.id === item.player_id))
+      setOnFieldPlayers(validOnField)
+
+      // BD stats have priority
+      const statsFromBd = {}
+      stats.forEach((s) => {
+        statsFromBd[s.player_id] = s
       })
 
-      return mergedStats
-    })
+      setPlayerStats((prevStats) => {
+        const mergedStats = { ...prevStats, ...statsFromBd }
+        validOnField.forEach((onFieldItem) => {
+          if (!mergedStats[onFieldItem.player_id]) {
+            mergedStats[onFieldItem.player_id] = createEmptyMatchPlayerStat(onFieldItem.player_id)
+          }
+        })
+        return mergedStats
+      })
 
-    if (rival) setRivalStats(rival)
-    setMatchNotes(match.notes || '')
-    draftRestoreRef.current = true
+      if (rival) {
+        setRivalStats({
+          goals: rival.goals ?? 0,
+          shots_on_goal: rival.shots_on_goal ?? 0,
+          fouls: rival.fouls ?? 0,
+          yellow_cards: rival.yellow_cards ?? 0,
+          red_cards: rival.red_cards ?? 0
+        })
+      }
+      setMatchNotes(match.notes || '')
+      draftRestoreRef.current = true
+    } catch (error) {
+      console.error('Error loading match data:', error)
+    }
   }
 
   const formatChrono = (seconds) => {
@@ -190,15 +206,44 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
   }
 
   const handleAddPlayerToField = async (playerId) => {
-    const activeCount = onFieldPlayers.filter(
-      (item) => item.exit_minute === null && players.some((p) => p.id === item.player_id)
-    ).length
-    if (activeCount >= 5) {
-      return
+    try {
+      const currentActive = onFieldPlayers.filter((item) => item.exit_minute === null)
+      
+      // Validación 1: máximo 5 jugadores
+      if (currentActive.length >= 5) {
+        alert('Máximo 5 jugadores en pista')
+        return
+      }
+      
+      // Validación 2: no duplicados
+      if (currentActive.some((item) => item.player_id === playerId)) {
+        alert('Este jugador ya está en pista')
+        return
+      }
+      
+      await api.setPlayerOnField({ match_id: match.id, player_id: playerId, entry_minute: chrono })
+      await loadMatchData()
+      setShowPlayerSelector(false)
+    } catch (error) {
+      console.error('Error adding player to field:', error)
+      alert('Error al añadir jugador: ' + error.message)
     }
-    await api.setPlayerOnField({ match_id: match.id, player_id: playerId, entry_minute: chrono })
-    loadMatchData()
-    setShowPlayerSelector(false)
+  }
+
+  const handleRemovePlayerFromQuintet = async (onFieldId) => {
+    try {
+      if (!confirm('¿Eliminar jugador del quinteto?')) return
+      const onField = onFieldPlayers.find((item) => item.id === onFieldId)
+      if (onField) {
+        const playedSeconds = Math.max(0, chrono - (onField.entry_minute ?? 0))
+        await persistPlayerMinutes(onField.player_id, playedSeconds)
+      }
+      await api.setPlayerOffField(onFieldId, chrono)
+      await loadMatchData()
+    } catch (error) {
+      console.error('Error removing player from field:', error)
+      alert('Error al eliminar jugador: ' + error.message)
+    }
   }
 
   const handleRemovePlayerFromField = async (onFieldId) => {
@@ -253,20 +298,29 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
 
   const persistAllPlayerStats = async () => {
     const entries = Object.entries(playerStats)
+    const errors = []
     for (const [playerId, stats] of entries) {
-      await api.upsertMatchPlayerStats({
-        match_id: match.id,
-        player_id: playerId,
-        goals: stats?.goals ?? 0,
-        assists: stats?.assists ?? 0,
-        shots_on_goal: stats?.shots_on_goal ?? 0,
-        shots_out: stats?.shots_out ?? 0,
-        fouls: stats?.fouls ?? 0,
-        yellow_cards: stats?.yellow_cards ?? 0,
-        red_cards: stats?.red_cards ?? 0,
-        minutes_played: stats?.minutes_played ?? 0,
-        saves: stats?.saves ?? 0
-      })
+      try {
+        await api.upsertMatchPlayerStats({
+          match_id: match.id,
+          player_id: playerId,
+          goals: Math.max(0, stats?.goals ?? 0),
+          assists: Math.max(0, stats?.assists ?? 0),
+          shots_on_goal: Math.max(0, stats?.shots_on_goal ?? 0),
+          shots_out: Math.max(0, stats?.shots_out ?? 0),
+          fouls: Math.max(0, stats?.fouls ?? 0),
+          yellow_cards: Math.max(0, stats?.yellow_cards ?? 0),
+          red_cards: Math.max(0, stats?.red_cards ?? 0),
+          minutes_played: Math.max(0, stats?.minutes_played ?? 0),
+          saves: Math.max(0, stats?.saves ?? 0)
+        })
+      } catch (error) {
+        console.error(`Error saving stats for player ${playerId}:`, error)
+        errors.push(`Jugador ${playerId}: ${error.message}`)
+      }
+    }
+    if (errors.length > 0) {
+      console.warn('Some player stats failed to save:', errors)
     }
   }
 
@@ -275,14 +329,18 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
   }
 
   const persistRivalStats = async () => {
-    await api.upsertRivalTeamStats({
-      match_id: match.id,
-      goals: rivalStats.goals ?? 0,
-      shots_on_goal: rivalStats.shots_on_goal ?? 0,
-      fouls: rivalStats.fouls ?? 0,
-      yellow_cards: rivalStats.yellow_cards ?? 0,
-      red_cards: rivalStats.red_cards ?? 0
-    })
+    try {
+      await api.upsertRivalTeamStats({
+        match_id: match.id,
+        goals: Math.max(0, rivalStats.goals ?? 0),
+        shots_on_goal: Math.max(0, rivalStats.shots_on_goal ?? 0),
+        fouls: Math.max(0, rivalStats.fouls ?? 0),
+        yellow_cards: Math.max(0, rivalStats.yellow_cards ?? 0),
+        red_cards: Math.max(0, rivalStats.red_cards ?? 0)
+      })
+    } catch (error) {
+      console.error('Error saving rival stats:', error)
+    }
   }
 
   const persistMatchNotes = async () => {
@@ -312,28 +370,45 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
   const awayScore = isHome ? totalRivalGoals : totalTeamGoals
 
   const handleFinalizeMatch = async () => {
-    setIsChronoRunning(false)
-
-    await persistAllPlayerStats()
-    await persistRivalStats()
-
-    const activePlayers = onFieldPlayers.filter((item) => item.exit_minute === null)
-    for (const active of activePlayers) {
-      const playedSeconds = Math.max(0, chrono - (active.entry_minute ?? 0))
-      await persistPlayerMinutes(active.player_id, playedSeconds)
-      await api.setPlayerOffField(active.id, chrono)
+    if (!confirm(`¿Finalizar partido? ${isHome ? 'Torrenueva' : match.rival_team_name} ${homeScore} - ${awayScore} ${isHome ? match.rival_team_name : 'Torrenueva'}`)) {
+      return
     }
 
-    await api.finalizeMatch({
-      match_id: match.id,
-      home_goals: homeScore,
-      away_goals: awayScore,
-      notes: matchNotes,
-      ended_at: new Date().toISOString()
-    })
+    try {
+      setIsChronoRunning(false)
+      console.log('Saving all match data before finalize...')
 
-    localStorage.removeItem(draftKey)
-    onClose()
+      // Save all stats with error handling
+      await persistAllPlayerStats()
+      console.log('Player stats saved')
+      
+      await persistRivalStats()
+      console.log('Rival stats saved')
+
+      const activePlayers = onFieldPlayers.filter((item) => item.exit_minute === null)
+      for (const active of activePlayers) {
+        const playedSeconds = Math.max(0, chrono - (active.entry_minute ?? 0))
+        await persistPlayerMinutes(active.player_id, playedSeconds)
+        await api.setPlayerOffField(active.id, chrono)
+      }
+      console.log('Final player minutes saved')
+
+      await api.finalizeMatch({
+        match_id: match.id,
+        home_goals: homeScore,
+        away_goals: awayScore,
+        notes: matchNotes,
+        ended_at: new Date().toISOString()
+      })
+      console.log('Match finalized successfully')
+
+      localStorage.removeItem(draftKey)
+      alert('Partido finalizado correctamente')
+      onClose()
+    } catch (error) {
+      console.error('Error finalizing match:', error)
+      alert('Error al finalizar partido: ' + error.message)
+    }
   }
 
   return (
@@ -454,6 +529,9 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
                       <td className="actions-col">
                         <button className="btn-small-action" onClick={() => setSelectedPlayerForChange(onField.id)}>
                           Cambiar
+                        </button>
+                        <button className="btn-small-action btn-danger" onClick={() => handleRemovePlayerFromQuintet(onField.id)} title="Eliminar del quinteto">
+                          ✕
                         </button>
                       </td>
                     </tr>
