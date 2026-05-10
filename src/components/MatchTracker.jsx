@@ -13,6 +13,7 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
   const [isProcessingSubstitution, setIsProcessingSubstitution] = useState(false)
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, message: '', onConfirm: null, onCancel: null })
   const chronoIntervalRef = useRef(null)
+  const actionLockRef = useRef(false)
   const draftRestoreRef = useRef(false)
   const draftSaveRef = useRef(null)
   const draftKey = `tf_match_draft_${match.id}`
@@ -78,6 +79,28 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
   }, [chrono, isChronoRunning, onFieldPlayers, playerStats, rivalStats, matchNotes, selectedPlayerForChange, draftKey])
 
   useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.code !== 'Space' || event.repeat) return
+
+      const target = event.target
+      const isEditableTarget =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+
+      if (isEditableTarget || confirmDialog.isOpen) return
+
+      event.preventDefault()
+      setIsChronoRunning((prev) => !prev)
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [confirmDialog.isOpen])
+
+  useEffect(() => {
     const handleBeforeUnload = () => {
       const payload = {
         chrono,
@@ -104,6 +127,14 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
         api.getRivalTeamStats(match.id)
       ])
 
+      const normalizedOnField = Array.isArray(onField)
+        ? onField.map((item) => ({
+            ...item,
+            entry_minute: Number(item.entry_minute ?? 0),
+            exit_minute: item.exit_minute == null ? null : Number(item.exit_minute)
+          }))
+        : []
+
       const draftRaw = localStorage.getItem(draftKey)
       if (!draftRestoreRef.current && draftRaw) {
         try {
@@ -111,7 +142,7 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
           const draftAge = Date.now() - (draft.savedAt || Date.now())
           const validDraftOnField = Array.isArray(draft.onFieldPlayers)
             ? draft.onFieldPlayers.filter((item) => players.some((p) => p.id === item.player_id))
-            : onField
+            : normalizedOnField
           setChrono((draft.chrono ?? 0) + (draft.isChronoRunning ? Math.floor(draftAge / 1000) : 0))
           setIsChronoRunning(Boolean(draft.isChronoRunning))
           setOnFieldPlayers(validDraftOnField)
@@ -131,7 +162,7 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
         }
       }
 
-      const validOnField = onField.filter((item) => players.some((p) => p.id === item.player_id))
+      const validOnField = normalizedOnField.filter((item) => players.some((p) => p.id === item.player_id))
       setOnFieldPlayers(validOnField)
 
       // BD stats have priority
@@ -174,8 +205,10 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
 
   const getPlayerLiveTime = (onField) => {
     const current = playerStats[onField.player_id] || {}
-    const accumulated = current.minutes_played ?? 0
-    const elapsed = Math.max(0, chrono - (onField.entry_minute ?? 0))
+    const accumulated = Math.max(0, Number(current.minutes_played ?? 0))
+    const entryMinute = Number(onField.entry_minute ?? 0)
+    const currentChrono = Number(chrono ?? 0)
+    const elapsed = Math.max(0, currentChrono - entryMinute)
     return formatChrono(accumulated + elapsed)
   }
 
@@ -208,7 +241,9 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
   }
 
   const handleAddPlayerToField = async (playerId) => {
+    if (actionLockRef.current) return
     try {
+      actionLockRef.current = true
       const currentActive = onFieldPlayers.filter((item) => item.exit_minute === null)
       
       // Validación 1: máximo 5 jugadores
@@ -229,6 +264,8 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
     } catch (error) {
       console.error('Error adding player to field:', error)
       alert('Error al añadir jugador: ' + error.message)
+    } finally {
+      actionLockRef.current = false
     }
   }
 
@@ -238,6 +275,8 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
       message: '¿Eliminar jugador del quinteto?',
       onConfirm: async () => {
         try {
+          if (actionLockRef.current) return
+          actionLockRef.current = true
           const onField = onFieldPlayers.find((item) => item.id === onFieldId)
           if (onField) {
             const playedSeconds = Math.max(0, chrono - (onField.entry_minute ?? 0))
@@ -250,6 +289,8 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
           console.error('Error removing player from field:', error)
           alert('Error al eliminar jugador: ' + error.message)
           setConfirmDialog({ isOpen: false, message: '', onConfirm: null, onCancel: null })
+        } finally {
+          actionLockRef.current = false
         }
       },
       onCancel: () => {
@@ -269,9 +310,10 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
   }
 
   const handleSubstitution = async (outOnFieldId, inPlayerId) => {
-    if (!outOnFieldId || !inPlayerId || isProcessingSubstitution) return
+    if (!outOnFieldId || !inPlayerId || isProcessingSubstitution || actionLockRef.current) return
     
     try {
+      actionLockRef.current = true
       setIsProcessingSubstitution(true)
       const outgoing = onFieldPlayers.find((item) => item.id === outOnFieldId)
       if (outgoing) {
@@ -287,6 +329,7 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
       alert('Error al realizar cambio: ' + error.message)
     } finally {
       setIsProcessingSubstitution(false)
+      actionLockRef.current = false
     }
   }
 
