@@ -380,7 +380,7 @@ export async function exportTrainingToPdf(training, players, teamName){
   try{
     if(!training) throw new Error('No hay datos de entrenamiento')
 
-    const logoDataUrl = await fetchImageAsDataUrl(window.location.origin + '/logo-192.png')
+    const logoDataUrl = await fetchImageAsDataUrl(`${import.meta.env.BASE_URL || '/'}logo-192.png`)
     const playersHtml = buildPlayerList(training, players)
       .map((player) => `<div class="attendance-item">${escapeHtml(player)}</div>`)
       .join('')
