@@ -2,6 +2,8 @@ import React, {useEffect, useMemo, useState} from 'react'
 import ExerciseCard from './ExerciseCard'
 import { api } from '../lib/api'
 import { exportTrainingToPdf } from '../lib/pdfExport'
+import { exportTrainingFichaToPdf } from '../lib/pdfFicha'
+import { isFichaTraining } from '../lib/trainingFicha'
 import CreateExerciseModal from './CreateExerciseModal'
 import RegisterModal from './RegisterModal'
 import ConfirmModal from './ConfirmModal'
@@ -11,6 +13,7 @@ import TrainingHistoryModal from './TrainingHistoryModal'
 import TeamDashboardModal from './TeamDashboardModal'
 import FutsalPage from './FutsalPage'
 import * as XLSX from 'xlsx'
+import { parseItemNotes } from '../lib/trainingFicha'
 
 export default function TeamPage({team, onBack}){
   const [exercises,setExercises] = useState([])
@@ -20,6 +23,8 @@ export default function TeamPage({team, onBack}){
   const [confirmFor,setConfirmFor] = useState(null)
   const [detailFor,setDetailFor] = useState(null)
   const [creatingTraining,setCreatingTraining] = useState(false)
+  const [editingTraining,setEditingTraining] = useState(null)
+  const [confirmDeleteTraining,setConfirmDeleteTraining] = useState(null)
   const [showTrainingHistory,setShowTrainingHistory] = useState(false)
   const [showDashboard,setShowDashboard] = useState(false)
   const [showFutsal, setShowFutsal] = useState(false)
@@ -119,6 +124,27 @@ export default function TeamPage({team, onBack}){
     setCreatingTraining(false)
   }
 
+  async function onEditTraining(payload){
+    if(!editingTraining) return
+    await api.updateTraining(editingTraining.id, {
+      training_date: payload.training_date,
+      notes: payload.notes,
+      attending_players: payload.selected_players,
+      objectives: payload.objectives,
+      warmup: payload.warmup
+    })
+    await api.replaceTrainingItems(editingTraining.id, payload.items)
+    await loadTrainingHistory(team.id)
+    setEditingTraining(null)
+  }
+
+  async function onConfirmDeleteTraining(){
+    if(!confirmDeleteTraining) return
+    await api.deleteTraining(confirmDeleteTraining.id)
+    await loadTrainingHistory(team.id)
+    setConfirmDeleteTraining(null)
+  }
+
   async function exportTrainingsToPdf(){
     const dataForExport = filteredTrainings.length > 0 ? filteredTrainings : trainings
     if(dataForExport.length === 0){
@@ -126,7 +152,10 @@ export default function TeamPage({team, onBack}){
       return
     }
     try{
-      await Promise.all(dataForExport.map(t => exportTrainingToPdf(t, players, team.name)))
+      // Sequential to avoid the legacy exporter trampling on the shared DOM wrapper.
+      for(const training of dataForExport){
+        await exportSingleTraining(training)
+      }
     }catch(e){
       console.error('Error exporting trainings:', e)
       alert('Error al exportar entrenamientos: ' + (e.message || e))
@@ -135,7 +164,6 @@ export default function TeamPage({team, onBack}){
 
   async function exportSingleTraining(training){
     try {
-      console.log('Exportando entrenamiento:', training)
       if(!training){
         alert('No hay datos para exportar')
         return
@@ -144,11 +172,14 @@ export default function TeamPage({team, onBack}){
         alert('El entrenamiento no tiene fecha')
         return
       }
+      if(isFichaTraining(training)){
+        await exportTrainingFichaToPdf(training, players, exercises, team.name, trainings)
+        return
+      }
       if(!training.items || training.items.length === 0){
         alert('El entrenamiento no tiene ejercicios')
         return
       }
-      console.log('Llamando a exportTrainingToPdf con:', {training, players, teamName: team.name})
       await exportTrainingToPdf(training, players, team.name)
     } catch (error) {
       console.error('Error en exportSingleTraining:', error)
@@ -167,6 +198,7 @@ export default function TeamPage({team, onBack}){
     dataForExport.forEach((training)=>{
       const date = new Date(training.training_date).toLocaleDateString('es-ES')
       ;(training.items || []).forEach((item)=>{
+        const parsed = parseItemNotes(item.notes)
         rows.push({
           Fecha: date,
           Ejercicio: item.exercise_name || '-',
@@ -174,7 +206,8 @@ export default function TeamPage({team, onBack}){
           Veces: item.planned_count ?? '-',
           Dimensiones: item.dimensions || '-',
           Objetivo: item.objective || '-',
-          NotasEjercicio: item.notes || '-',
+          NotasEjercicio: parsed.text || '-',
+          NotasExtra: parsed.extra_text || '-',
           NotasEntrenamiento: training.notes || '-'
         })
       })
@@ -239,7 +272,10 @@ export default function TeamPage({team, onBack}){
       if(!dateOk) return false
       if(!search) return true
 
-      const joined = `${training.notes || ''} ${(training.items || []).map(item=>`${item.exercise_name || ''} ${item.category || ''} ${item.objective || ''} ${item.notes || ''}`).join(' ')}`.toLowerCase()
+      const joined = `${training.notes || ''} ${(training.items || []).map(item=>{
+        const parsed = parseItemNotes(item.notes)
+        return `${item.exercise_name || ''} ${item.category || ''} ${item.objective || ''} ${parsed.text} ${parsed.extra_text}`
+      }).join(' ')}`.toLowerCase()
       return joined.includes(search)
     })
   }, [trainings, trainingSearch, trainingDateFrom, trainingDateTo])
@@ -382,6 +418,25 @@ export default function TeamPage({team, onBack}){
           trainings={filteredTrainings}
           onClose={()=>setShowTrainingHistory(false)}
           onExportTraining={exportSingleTraining}
+          onEditTraining={(training)=>{ setShowTrainingHistory(false); setEditingTraining(training) }}
+          onDeleteTraining={(training)=>setConfirmDeleteTraining(training)}
+        />
+      )}
+      {editingTraining && (
+        <TrainingPlannerModal
+          exercises={exercises}
+          players={players}
+          initial={editingTraining}
+          onSave={onEditTraining}
+          onCancel={()=>setEditingTraining(null)}
+        />
+      )}
+      {confirmDeleteTraining && (
+        <ConfirmModal
+          title="Borrar entrenamiento"
+          message={`Borrar el entrenamiento del ${new Date(confirmDeleteTraining.training_date).toLocaleDateString('es-ES')}? Se eliminarán también todos sus ejercicios.`}
+          onConfirm={onConfirmDeleteTraining}
+          onCancel={()=>setConfirmDeleteTraining(null)}
         />
       )}
       {showDashboard && (
