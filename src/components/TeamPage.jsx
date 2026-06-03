@@ -12,6 +12,7 @@ import TrainingPlannerModal from './TrainingPlannerModal'
 import TrainingHistoryModal from './TrainingHistoryModal'
 import TeamDashboardModal from './TeamDashboardModal'
 import FutsalPage from './FutsalPage'
+import TacticalBoard from './TacticalBoard'
 import * as XLSX from 'xlsx'
 import { parseItemNotes } from '../lib/trainingFicha'
 
@@ -28,6 +29,7 @@ export default function TeamPage({team, onBack}){
   const [showTrainingHistory,setShowTrainingHistory] = useState(false)
   const [showDashboard,setShowDashboard] = useState(false)
   const [showFutsal, setShowFutsal] = useState(false)
+  const [showPizarra, setShowPizarra] = useState(false)
   const [trainings,setTrainings] = useState([])
   const [players, setPlayers] = useState([])
   const [showExerciseFilters,setShowExerciseFilters] = useState(false)
@@ -297,6 +299,8 @@ export default function TeamPage({team, onBack}){
     <div>
       {showFutsal ? (
         <FutsalPage teamId={team.id} onBack={() => setShowFutsal(false)} />
+      ) : showPizarra ? (
+        <TacticalBoard teamId={team.id} onClose={() => setShowPizarra(false)} />
       ) : (
         <>
           <div className="header-top">
@@ -309,6 +313,7 @@ export default function TeamPage({team, onBack}){
               <button className="btn" onClick={()=>setCreatingTraining(true)}>🗓️ Nuevo entrenamiento</button>
               <button className="btn" onClick={()=>setShowTrainingHistory(true)}>📚 Historial</button>
               <button className="btn btn-futsal" onClick={()=>setShowFutsal(true)}>⚽ Futsal</button>
+              <button className="btn" onClick={()=>setShowPizarra(true)}>🏟️ Pizarra</button>
               <button className="btn btn-primary" onClick={()=>setCreating(true)}>+ Nuevo ejercicio</button>
             </div>
           </div>
