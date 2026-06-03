@@ -92,26 +92,35 @@ export default function TeamPage({ team, onBack }) {
   }
 
   async function loadExerciseWithRecords(exercises) {
-    const enriched = await Promise.all(
-      exercises.map(async (ex) => {
-        const records = await api.getRecords(ex.id);
-        const totalCount = records.reduce((sum, r) => sum + (r.count || 0), 0);
-        const avgEff =
-          records.length > 0
-            ? records.reduce((sum, r) => sum + (r.effectiveness || 0), 0) /
-              records.length
-            : 0;
-        const lastRecord = records[0];
-        return {
-          ...ex,
-          totalCount,
-          effectivenessAvg: avgEff,
-          lastDate: lastRecord?.occurred_at,
-          lastDimensions: lastRecord?.dimensions,
-        };
-      }),
-    );
-    return enriched;
+    if (!exercises.length) return exercises;
+
+    // Single batch query instead of one query per exercise (avoids N+1 timeout with large datasets)
+    const exerciseIds = exercises.map((ex) => ex.id);
+    const allRecords = await api.getRecordsByExerciseIds(exerciseIds);
+
+    // Group records by exercise_id (already ordered desc by occurred_at)
+    const recordsByEx = {};
+    allRecords.forEach((r) => {
+      if (!recordsByEx[r.exercise_id]) recordsByEx[r.exercise_id] = [];
+      recordsByEx[r.exercise_id].push(r);
+    });
+
+    return exercises.map((ex) => {
+      const records = recordsByEx[ex.id] || [];
+      const totalCount = records.reduce((sum, r) => sum + (r.count || 0), 0);
+      const avgEff =
+        records.length > 0
+          ? records.reduce((sum, r) => sum + (r.effectiveness || 0), 0) / records.length
+          : 0;
+      const lastRecord = records[0];
+      return {
+        ...ex,
+        totalCount,
+        effectivenessAvg: avgEff,
+        lastDate: lastRecord?.occurred_at,
+        lastDimensions: lastRecord?.dimensions,
+      };
+    });
   }
 
   async function onSaveRecord(data) {
@@ -503,7 +512,7 @@ export default function TeamPage({ team, onBack }) {
             <div className="empty-state">
               <div className="empty-icon"><DumbbellIcon size={72}/></div>
               <h3>Sin ejercicios aún</h3>
-              <p>
+              <p style={{color:'#444'}}>
                 Crea tu primer ejercicio para comenzar a registrar
                 entrenamientos
               </p>

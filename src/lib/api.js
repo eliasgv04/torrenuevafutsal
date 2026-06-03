@@ -329,6 +329,28 @@ export const api = {
     return lsGet(LS_RECORDS).filter(r=>r.exercise_id===exerciseId)
   },
 
+  // Fetch all records for multiple exercises in a single query (avoids N+1)
+  async getRecordsByExerciseIds(exerciseIds){
+    if(!exerciseIds || exerciseIds.length === 0) return []
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('exercise_records')
+          .select('*')
+          .in('exercise_id', exerciseIds)
+          .order('occurred_at', {ascending:false})
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    const idSet = new Set(exerciseIds)
+    return lsGet(LS_RECORDS)
+      .filter(r => idSet.has(r.exercise_id))
+      .sort((a,b) => new Date(b.occurred_at) - new Date(a.occurred_at))
+  },
+
   async createRecord({exercise_id, occurred_at, count, effectiveness, dimensions, notes}){
     const recordDate = occurred_at || new Date().toISOString().slice(0, 10)
     try{
