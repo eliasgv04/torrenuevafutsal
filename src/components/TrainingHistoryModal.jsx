@@ -1,12 +1,13 @@
 import React from 'react'
 import { parseItemNotes, isFichaTraining } from '../lib/trainingFicha'
+import { BookOpenIcon, EditIcon, DownloadIcon, TrashIcon, CameraIcon } from './Icons'
 
 export default function TrainingHistoryModal({trainings, onClose, onExportTraining, onEditTraining, onDeleteTraining}){
   return (
     <div className="modal-overlay">
       <div className="modal-content" style={{maxWidth:860}}>
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap'}}>
-          <h3 style={{margin:0}}>📚 Historial de entrenamientos</h3>
+          <h3 style={{margin:0,display:'flex',alignItems:'center',gap:8}}><BookOpenIcon size={18}/> Historial de entrenamientos</h3>
           <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
             <button className="btn btn-cancel" onClick={onClose} style={{marginTop:0}}>Cerrar</button>
           </div>
@@ -33,7 +34,7 @@ export default function TrainingHistoryModal({trainings, onClose, onExportTraini
                           onClick={() => onEditTraining(training)}
                           style={{marginTop:0, padding:'6px 12px', fontSize:'12px'}}
                         >
-                          ✏️ Editar
+                          <EditIcon size={13}/> Editar
                         </button>
                       )}
                       {onExportTraining && (
@@ -42,7 +43,7 @@ export default function TrainingHistoryModal({trainings, onClose, onExportTraini
                           onClick={() => onExportTraining(training)}
                           style={{marginTop:0, padding:'6px 12px', fontSize:'12px'}}
                         >
-                          📥 Exportar PDF
+                          <DownloadIcon size={13}/> Exportar PDF
                         </button>
                       )}
                       {onDeleteTraining && (
@@ -51,7 +52,7 @@ export default function TrainingHistoryModal({trainings, onClose, onExportTraini
                           onClick={() => onDeleteTraining(training)}
                           style={{marginTop:0, padding:'6px 12px', fontSize:'12px'}}
                         >
-                          🗑️ Borrar
+                          <TrashIcon size={13}/> Borrar
                         </button>
                       )}
                     </div>
@@ -71,7 +72,7 @@ export default function TrainingHistoryModal({trainings, onClose, onExportTraini
                           {item.objective ? <div className="small">Objetivo: {item.objective}</div> : null}
                           {parsed.text ? <div className="small">Notas: {parsed.text}</div> : null}
                           {parsed.extra_text ? <div className="small">Notas extra: {parsed.extra_text}</div> : null}
-                          {parsed.custom_photo_url ? <div className="small" style={{color:'#0f9d58'}}>📷 foto custom</div> : null}
+                          {parsed.custom_photo_url ? <div className="small" style={{color:'#0f9d58',display:'flex',alignItems:'center',gap:4}}><CameraIcon size={12}/> foto custom</div> : null}
                         </li>
                       )
                     })}

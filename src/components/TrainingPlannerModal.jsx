@@ -1,5 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 import { uploadPhoto } from '../lib/api'
+import { EditIcon, CalendarIcon, GripIcon, ChevronUpIcon, ChevronDownIcon } from './Icons'
 import {
   SECTION,
   SECTION_CATEGORY,
@@ -292,7 +293,7 @@ export default function TrainingPlannerModal({exercises, players, onSave, onCanc
   return (
     <div className="modal-overlay">
       <div className="modal-content modal-wide">
-        <h3>{initial ? '✏️ Editar entrenamiento' : '🗓️ Planificar entrenamiento'}</h3>
+        <h3 style={{display:'flex',alignItems:'center',gap:8}}>{initial ? <><EditIcon size={18}/> Editar entrenamiento</> : <><CalendarIcon size={18}/> Planificar entrenamiento</>}</h3>
 
         <section className="planner-section">
           <h4 className="planner-heading">Datos de la sesión</h4>
@@ -659,9 +660,9 @@ function SortableMainSlot({id, index, slot, exercises, onChange, onClear, onMove
         onPhotoClear={onPhotoClear}
         dragHandle={
           <div className="planner-drag-controls">
-            <button type="button" className="planner-handle" {...attributes} {...listeners} aria-label="Arrastrar">⋮⋮</button>
-            <button type="button" className="planner-arrow" onClick={onMoveUp} disabled={!canMoveUp} aria-label="Mover arriba">▲</button>
-            <button type="button" className="planner-arrow" onClick={onMoveDown} disabled={!canMoveDown} aria-label="Mover abajo">▼</button>
+            <button type="button" className="planner-handle" {...attributes} {...listeners} aria-label="Arrastrar"><GripIcon size={15}/></button>
+            <button type="button" className="planner-arrow" onClick={onMoveUp} disabled={!canMoveUp} aria-label="Mover arriba"><ChevronUpIcon size={13}/></button>
+            <button type="button" className="planner-arrow" onClick={onMoveDown} disabled={!canMoveDown} aria-label="Mover abajo"><ChevronDownIcon size={13}/></button>
           </div>
         }
       />
@@ -736,7 +737,7 @@ function ExercisePicker({value, exercises, onChange}){
         onClick={() => setOpen((o) => !o)}
       >
         <span className="picker-text">{selected ? selected.name : '— Selecciona ejercicio —'}</span>
-        <span className="picker-caret">{open ? '▴' : '▾'}</span>
+        <span className="picker-caret">{open ? <ChevronUpIcon size={12}/> : <ChevronDownIcon size={12}/>}</span>
       </button>
       {open && (
         <div className="picker-dropdown">

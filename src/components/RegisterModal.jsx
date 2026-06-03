@@ -1,4 +1,5 @@
 import React, {useState} from 'react'
+import { BarChartIcon } from './Icons'
 
 export default function RegisterModal({exercise, onSave, onCancel}){
   const [date,setDate] = useState(new Date().toISOString().slice(0,10))
@@ -14,7 +15,7 @@ export default function RegisterModal({exercise, onSave, onCancel}){
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        <h3>📊 Registrar {exercise?.name || 'ejercicio'}</h3>
+        <h3 style={{display:'flex',alignItems:'center',gap:8}}><BarChartIcon size={18}/> Registrar {exercise?.name || 'ejercicio'}</h3>
         <label>Fecha de ejecución</label>
         <input type="date" value={date} onChange={e=>setDate(e.target.value)} />
         <label>¿Cuántas veces?</label>

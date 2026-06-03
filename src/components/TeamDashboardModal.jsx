@@ -1,4 +1,5 @@
 import React, {useMemo} from 'react'
+import { XIcon } from './Icons'
 
 function getMonthKey(value){
   const d = new Date(value)
@@ -78,7 +79,7 @@ export default function TeamDashboardModal({teamName, exercises, trainings, onCl
             <h3>Dashboard {teamName ? `- ${teamName}` : ''}</h3>
             <p>Resumen visual de actividad, uso de ejercicios y evolución.</p>
           </div>
-          <button className="btn btn-cancel" style={{marginTop:0, padding:'8px 12px', fontSize:'12px'}} onClick={onClose}>✕ Cerrar</button>
+          <button className="btn btn-cancel" style={{marginTop:0, padding:'8px 12px', fontSize:'12px'}} onClick={onClose}><XIcon size={13}/> Cerrar</button>
         </div>
 
         <div className="dashboard-kpis">

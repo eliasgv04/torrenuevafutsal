@@ -1,185 +1,104 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { api } from '../lib/api'
+import { XIcon, PauseIcon, PlayIcon } from './Icons'
 
 export default function MatchTracker({ match, teamId, players, onClose }) {
-  const [onFieldPlayers, setOnFieldPlayers] = useState([])
-  const [playerStats, setPlayerStats] = useState({})
-  const [rivalStats, setRivalStats] = useState({ goals: 0, shots_on_goal: 0, fouls: 0, yellow_cards: 0, red_cards: 0 })
-  const [matchNotes, setMatchNotes] = useState(match.notes || '')
-  const [chrono, setChrono] = useState(0)
-  const [isChronoRunning, setIsChronoRunning] = useState(false)
-  const [showPlayerSelector, setShowPlayerSelector] = useState(false)
+  const [onFieldPlayers,          setOnFieldPlayers]          = useState([])
+  const [playerStats,             setPlayerStats]             = useState({})
+  const [rivalStats,              setRivalStats]              = useState({ goals:0, shots_on_goal:0, fouls:0, yellow_cards:0, red_cards:0 })
+  const [matchNotes,              setMatchNotes]              = useState(match.notes || '')
+  const [chrono,                  setChrono]                  = useState(0)
+  const [isChronoRunning,         setIsChronoRunning]         = useState(false)
   const [selectedPlayerForChange, setSelectedPlayerForChange] = useState(null)
-  const [isProcessingSubstitution, setIsProcessingSubstitution] = useState(false)
-  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, message: '', onConfirm: null, onCancel: null })
-  const chronoIntervalRef = useRef(null)
-  const actionLockRef = useRef(false)
-  const draftRestoreRef = useRef(false)
-  const draftSaveRef = useRef(null)
+  const [isProcessing,            setIsProcessing]            = useState(false)
+  const [saveStatus,              setSaveStatus]              = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
+  const [confirmDialog,           setConfirmDialog]           = useState({ isOpen:false, message:'', onConfirm:null, onCancel:null })
+  const [redCardAlert,            setRedCardAlert]            = useState(null) // { playerId, playerName, onFieldId }
+
+  const chronoIntervalRef  = useRef(null)
+  const actionLockRef      = useRef(false)
+  const draftRestoredRef   = useRef(false)
+  const draftSaveTimerRef  = useRef(null)
+  const statSaveTimers     = useRef(new Map())   // playerId → timeout id
+  const rivalSaveTimerRef  = useRef(null)
+  const autoSaveIntervalRef= useRef(null)
   const draftKey = `tf_match_draft_${match.id}`
 
-  const deleteButtonStyle = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '30px',
-    height: '30px',
-    marginLeft: '6px',
-    border: '1px solid rgba(200,69,69,0.35)',
-    borderRadius: '999px',
-    background: '#fff',
-    color: '#c84545',
-    fontSize: '16px',
-    fontWeight: 700,
-    lineHeight: 1,
-    cursor: 'pointer',
-    transition: 'transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, color 0.18s ease, border-color 0.18s ease'
-  }
-
-  const confirmDialogStyles = {
-    overlay: {
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(11,11,11,0.55)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 10000,
-      backdropFilter: 'blur(3px)'
-    },
-    content: {
-      background: 'linear-gradient(180deg, #ffffff 0%, #f8fbf7 100%)',
-      border: '1px solid rgba(31,111,35,0.12)',
-      borderRadius: '18px',
-      padding: '26px 24px 22px',
-      width: 'min(420px, calc(100vw - 32px))',
-      boxShadow: '0 24px 70px rgba(0,0,0,0.28)'
-    },
-    message: {
-      color: 'var(--text-dark)',
-      fontSize: '16px',
-      fontWeight: 700,
-      lineHeight: 1.5,
-      marginBottom: '22px',
-      textAlign: 'center',
-      whiteSpace: 'pre-line'
-    },
-    buttons: {
-      display: 'flex',
-      gap: '10px'
-    },
-    button: {
-      flex: 1,
-      minHeight: '42px',
-      padding: '10px 16px',
-      border: 'none',
-      borderRadius: '10px',
-      fontWeight: 700,
-      cursor: 'pointer'
-    }
-  }
-
-  const createEmptyMatchPlayerStat = (playerId) => ({
-    match_id: match.id,
-    player_id: playerId,
-    goals: 0,
-    assists: 0,
-    shots_on_goal: 0,
-    shots_out: 0,
-    fouls: 0,
-    yellow_cards: 0,
-    red_cards: 0,
-    minutes_played: 0,
-    saves: 0
-  })
-
-  function StatStepper({ value, onChange, min = 0, max, onBlur }){
-    return (
-      <div className="stepper">
-        <button type="button" onClick={()=>{ const nv = Math.max(min, (Number(value)||0) - 1); onChange(nv); if(onBlur) onBlur(); }}>-</button>
-        <input type="number" value={value} onChange={(e)=>onChange(parseInt(e.target.value)||0)} onBlur={(e)=>onBlur && onBlur()} />
-        <button type="button" onClick={()=>{ const nv = typeof max === 'number' ? Math.min(max, (Number(value)||0) + 1) : (Number(value)||0) + 1; onChange(nv); if(onBlur) onBlur(); }}>+</button>
-      </div>
-    )
-  }
-
-  useEffect(() => {
-    loadMatchData()
-  }, [match.id])
-
+  // ── Chrono ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (isChronoRunning) {
-      chronoIntervalRef.current = setInterval(() => {
-        setChrono((prev) => prev + 1)
-      }, 1000)
-    } else if (chronoIntervalRef.current) {
+      chronoIntervalRef.current = setInterval(() => setChrono(p => p + 1), 1000)
+    } else {
       clearInterval(chronoIntervalRef.current)
     }
-    return () => chronoIntervalRef.current && clearInterval(chronoIntervalRef.current)
+    return () => clearInterval(chronoIntervalRef.current)
   }, [isChronoRunning])
 
+  // ── Space-bar toggle ────────────────────────────────────────────────
   useEffect(() => {
-    if (!draftRestoreRef.current) return
-    if (draftSaveRef.current) clearTimeout(draftSaveRef.current)
-
-    draftSaveRef.current = setTimeout(() => {
-      const payload = {
-        chrono,
-        isChronoRunning,
-        onFieldPlayers,
-        playerStats,
-        rivalStats,
-        matchNotes,
-        selectedPlayerForChange,
-        savedAt: Date.now()
-      }
-      localStorage.setItem(draftKey, JSON.stringify(payload))
-    }, 350)
-
-    return () => draftSaveRef.current && clearTimeout(draftSaveRef.current)
-  }, [chrono, isChronoRunning, onFieldPlayers, playerStats, rivalStats, matchNotes, selectedPlayerForChange, draftKey])
-
-  useEffect(() => {
-    const handleKeyDown = (event) => {
-      if (event.code !== 'Space' || event.repeat) return
-
-      const target = event.target
-      const isEditableTarget =
-        target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.tagName === 'SELECT' ||
-          target.isContentEditable)
-
-      if (isEditableTarget || confirmDialog.isOpen) return
-
-      event.preventDefault()
-      setIsChronoRunning((prev) => !prev)
+    const handler = (e) => {
+      if (e.code !== 'Space' || e.repeat) return
+      const t = e.target
+      if (t?.tagName === 'INPUT' || t?.tagName === 'TEXTAREA' || t?.tagName === 'SELECT' || t?.isContentEditable) return
+      if (confirmDialog.isOpen || redCardAlert) return
+      e.preventDefault()
+      setIsChronoRunning(p => !p)
     }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [confirmDialog.isOpen, redCardAlert])
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [confirmDialog.isOpen])
-
+  // ── Draft save (debounced 350ms) ────────────────────────────────────
   useEffect(() => {
-    const handleBeforeUnload = () => {
-      const payload = {
-        chrono,
-        isChronoRunning,
-        onFieldPlayers,
-        playerStats,
-        rivalStats,
-        matchNotes,
-        selectedPlayerForChange,
-        savedAt: Date.now()
-      }
-      localStorage.setItem(draftKey, JSON.stringify(payload))
-    }
+    if (!draftRestoredRef.current) return
+    clearTimeout(draftSaveTimerRef.current)
+    draftSaveTimerRef.current = setTimeout(() => saveDraft(), 350)
+    return () => clearTimeout(draftSaveTimerRef.current)
+  }, [chrono, isChronoRunning, onFieldPlayers, playerStats, rivalStats, matchNotes, selectedPlayerForChange])
 
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [chrono, isChronoRunning, onFieldPlayers, playerStats, rivalStats, matchNotes, selectedPlayerForChange, draftKey])
+  // ── Draft save on tab close ─────────────────────────────────────────
+  useEffect(() => {
+    const handler = () => saveDraft()
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [chrono, isChronoRunning, onFieldPlayers, playerStats, rivalStats, matchNotes, selectedPlayerForChange])
 
+  // ── Periodic auto-save every 30s ────────────────────────────────────
+  useEffect(() => {
+    autoSaveIntervalRef.current = setInterval(() => {
+      if (draftRestoredRef.current) autoSaveAll()
+    }, 30_000)
+    return () => clearInterval(autoSaveIntervalRef.current)
+  }, [])
+
+  // ── Load data on mount ──────────────────────────────────────────────
+  useEffect(() => { loadMatchData() }, [match.id])
+
+  // ── Helpers ─────────────────────────────────────────────────────────
+  function saveDraft() {
+    localStorage.setItem(draftKey, JSON.stringify({
+      chrono, isChronoRunning, onFieldPlayers, playerStats,
+      rivalStats, matchNotes, selectedPlayerForChange,
+      savedAt: Date.now()
+    }))
+  }
+
+  function emptyStats(playerId) {
+    return { match_id:match.id, player_id:playerId, goals:0, assists:0, shots_on_goal:0, shots_out:0, fouls:0, yellow_cards:0, red_cards:0, minutes_played:0, saves:0 }
+  }
+
+  function formatChrono(secs) {
+    const m = Math.floor(secs / 60), s = secs % 60
+    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+  }
+
+  function getPlayerLiveTime(onField) {
+    const acc = Math.max(0, Number(playerStats[onField.player_id]?.minutes_played ?? 0))
+    const elapsed = Math.max(0, Number(chrono) - Number(onField.entry_minute ?? 0))
+    return formatChrono(acc + elapsed)
+  }
+
+  // ── Load from DB (+ optional draft restore) ─────────────────────────
   const loadMatchData = async () => {
     try {
       const [onField, stats, rival] = await Promise.all([
@@ -188,399 +107,425 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
         api.getRivalTeamStats(match.id)
       ])
 
-      const normalizedOnField = Array.isArray(onField)
-        ? onField.map((item) => ({
-            ...item,
-            entry_minute: Number(item.entry_minute ?? 0),
-            exit_minute: item.exit_minute == null ? null : Number(item.exit_minute)
-          }))
-        : []
+      const normOnField = (Array.isArray(onField) ? onField : [])
+        .map(o => ({ ...o, entry_minute: Number(o.entry_minute ?? 0), exit_minute: o.exit_minute == null ? null : Number(o.exit_minute) }))
 
-      const draftRaw = localStorage.getItem(draftKey)
-      if (!draftRestoreRef.current && draftRaw) {
-        try {
-          const draft = JSON.parse(draftRaw)
-          const draftAge = Date.now() - (draft.savedAt || Date.now())
-          const validDraftOnField = Array.isArray(draft.onFieldPlayers)
-            ? draft.onFieldPlayers.filter((item) => players.some((p) => p.id === item.player_id))
-            : normalizedOnField
-          setChrono((draft.chrono ?? 0) + (draft.isChronoRunning ? Math.floor(draftAge / 1000) : 0))
-          setIsChronoRunning(Boolean(draft.isChronoRunning))
-          setOnFieldPlayers(validDraftOnField)
-          setPlayerStats(draft.playerStats || {})
-          // Merge with BD stats: BD data wins if draft is missing data
-          if(rival && (!draft.rivalStats || Object.keys(draft.rivalStats).length === 0)) {
-            setRivalStats({goals: rival.goals ?? 0, shots_on_goal: rival.shots_on_goal ?? 0, fouls: rival.fouls ?? 0, yellow_cards: rival.yellow_cards ?? 0, red_cards: rival.red_cards ?? 0})
-          } else if(draft.rivalStats) {
-            setRivalStats(draft.rivalStats)
+      // Attempt draft restore (only once per mount)
+      if (!draftRestoredRef.current) {
+        const draftRaw = localStorage.getItem(draftKey)
+        if (draftRaw) {
+          try {
+            const d = JSON.parse(draftRaw)
+            const age = Date.now() - (d.savedAt || 0)          // ← was: || Date.now() (bug: age always 0)
+            const MAX_DRAFT_AGE = 6 * 60 * 60 * 1000           // 6 hours
+            if (age < MAX_DRAFT_AGE) {
+              const validDraftOnField = Array.isArray(d.onFieldPlayers)
+                ? d.onFieldPlayers.filter(o => players.some(p => p.id === o.player_id))
+                : normOnField
+
+              setChrono((d.chrono ?? 0) + (d.isChronoRunning ? Math.floor(age / 1000) : 0))
+              setIsChronoRunning(Boolean(d.isChronoRunning))
+              setOnFieldPlayers(validDraftOnField)
+              setPlayerStats(d.playerStats || {})
+
+              // Deep-merge rival stats: DB wins for missing draft fields
+              setRivalStats({
+                goals:         d.rivalStats?.goals         ?? rival?.goals         ?? 0,
+                shots_on_goal: d.rivalStats?.shots_on_goal ?? rival?.shots_on_goal ?? 0,
+                fouls:         d.rivalStats?.fouls         ?? rival?.fouls         ?? 0,
+                yellow_cards:  d.rivalStats?.yellow_cards  ?? rival?.yellow_cards  ?? 0,
+                red_cards:     d.rivalStats?.red_cards     ?? rival?.red_cards     ?? 0,
+              })
+
+              if (typeof d.matchNotes === 'string') setMatchNotes(d.matchNotes)
+              setSelectedPlayerForChange(d.selectedPlayerForChange || null)
+              draftRestoredRef.current = true
+              return
+            }
+          } catch (err) {
+            console.warn('Draft corrupto, usando datos de BD:', err)
+            localStorage.removeItem(draftKey)
           }
-          if (typeof draft.matchNotes === 'string') setMatchNotes(draft.matchNotes)
-          setSelectedPlayerForChange(draft.selectedPlayerForChange || null)
-          draftRestoreRef.current = true
-          return
-        } catch (error) {
-          console.warn('Invalid match draft, falling back to persisted data', error)
         }
       }
 
-      const validOnField = normalizedOnField.filter((item) => players.some((p) => p.id === item.player_id))
+      // No valid draft — load from DB
+      const validOnField = normOnField.filter(o => players.some(p => p.id === o.player_id))
       setOnFieldPlayers(validOnField)
 
-      // BD stats have priority
-      const statsFromBd = {}
-      stats.forEach((s) => {
-        statsFromBd[s.player_id] = s
-      })
-
-      setPlayerStats((prevStats) => {
-        const mergedStats = { ...prevStats, ...statsFromBd }
-        validOnField.forEach((onFieldItem) => {
-          if (!mergedStats[onFieldItem.player_id]) {
-            mergedStats[onFieldItem.player_id] = createEmptyMatchPlayerStat(onFieldItem.player_id)
-          }
+      const statsMap = {}
+      stats.forEach(s => { statsMap[s.player_id] = s })
+      setPlayerStats(prev => {
+        const merged = { ...prev, ...statsMap }
+        validOnField.forEach(o => {
+          if (!merged[o.player_id]) merged[o.player_id] = emptyStats(o.player_id)
         })
-        return mergedStats
+        return merged
       })
 
       if (rival) {
-        setRivalStats({
-          goals: rival.goals ?? 0,
-          shots_on_goal: rival.shots_on_goal ?? 0,
-          fouls: rival.fouls ?? 0,
-          yellow_cards: rival.yellow_cards ?? 0,
-          red_cards: rival.red_cards ?? 0
-        })
+        setRivalStats({ goals: rival.goals??0, shots_on_goal: rival.shots_on_goal??0, fouls: rival.fouls??0, yellow_cards: rival.yellow_cards??0, red_cards: rival.red_cards??0 })
       }
       setMatchNotes(match.notes || '')
-      draftRestoreRef.current = true
-    } catch (error) {
-      console.error('Error loading match data:', error)
+      draftRestoredRef.current = true
+    } catch (err) {
+      console.error('Error cargando datos del partido:', err)
+      alert('Error al cargar el partido. Revisa la conexión e inténtalo de nuevo.')
     }
   }
 
-  const formatChrono = (seconds) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  // ── Persist helpers ─────────────────────────────────────────────────
+  const persistPlayerMinutes = async (playerId, extraSecs = 0) => {
+    const cur = playerStats[playerId] || {}
+    const next = Math.max(0, (cur.minutes_played ?? 0) + extraSecs)
+    setPlayerStats(p => ({ ...p, [playerId]: { ...(p[playerId] || emptyStats(playerId)), minutes_played: next } }))
+    await api.upsertMatchPlayerStats({ match_id:match.id, player_id:playerId, goals:cur.goals??0, assists:cur.assists??0, shots_on_goal:cur.shots_on_goal??0, shots_out:cur.shots_out??0, fouls:cur.fouls??0, yellow_cards:cur.yellow_cards??0, red_cards:cur.red_cards??0, minutes_played:next, saves:cur.saves??0 })
   }
 
-  const getPlayerLiveTime = (onField) => {
-    const current = playerStats[onField.player_id] || {}
-    const accumulated = Math.max(0, Number(current.minutes_played ?? 0))
-    const entryMinute = Number(onField.entry_minute ?? 0)
-    const currentChrono = Number(chrono ?? 0)
-    const elapsed = Math.max(0, currentChrono - entryMinute)
-    return formatChrono(accumulated + elapsed)
-  }
+  const persistPlayerStats = useCallback(async (playerId) => {
+    const cur = playerStats[playerId] || {}
+    try {
+      setSaveStatus('saving')
+      await api.upsertMatchPlayerStats({ match_id:match.id, player_id:playerId, goals:cur.goals??0, assists:cur.assists??0, shots_on_goal:cur.shots_on_goal??0, shots_out:cur.shots_out??0, fouls:cur.fouls??0, yellow_cards:cur.yellow_cards??0, red_cards:cur.red_cards??0, minutes_played:cur.minutes_played??0, saves:cur.saves??0 })
+      setSaveStatus('saved')
+      setTimeout(() => setSaveStatus('idle'), 1500)
+    } catch (err) {
+      console.error('Error guardando stats:', err)
+      setSaveStatus('error')
+    }
+  }, [playerStats, match.id])
 
-  const persistPlayerMinutes = async (playerId, extraSeconds = 0) => {
-    const current = playerStats[playerId] || {}
-    const nextMinutesPlayed = (current.minutes_played ?? 0) + extraSeconds
+  const persistRivalStats = useCallback(async () => {
+    try {
+      setSaveStatus('saving')
+      await api.upsertRivalTeamStats({ match_id:match.id, goals:Math.max(0,rivalStats.goals??0), shots_on_goal:Math.max(0,rivalStats.shots_on_goal??0), fouls:Math.max(0,rivalStats.fouls??0), yellow_cards:Math.max(0,rivalStats.yellow_cards??0), red_cards:Math.max(0,rivalStats.red_cards??0) })
+      setSaveStatus('saved')
+      setTimeout(() => setSaveStatus('idle'), 1500)
+    } catch (err) {
+      console.error('Error guardando stats rival:', err)
+      setSaveStatus('error')
+    }
+  }, [rivalStats, match.id])
 
-    setPlayerStats((prev) => ({
-      ...prev,
-      [playerId]: {
-        ...(prev[playerId] || createEmptyMatchPlayerStat(playerId)),
-        ...current,
-        minutes_played: nextMinutesPlayed
+  const persistAllPlayerStats = async () => {
+    const errors = []
+    for (const [pid, s] of Object.entries(playerStats)) {
+      try {
+        await api.upsertMatchPlayerStats({ match_id:match.id, player_id:pid, goals:Math.max(0,s?.goals??0), assists:Math.max(0,s?.assists??0), shots_on_goal:Math.max(0,s?.shots_on_goal??0), shots_out:Math.max(0,s?.shots_out??0), fouls:Math.max(0,s?.fouls??0), yellow_cards:Math.max(0,s?.yellow_cards??0), red_cards:Math.max(0,s?.red_cards??0), minutes_played:Math.max(0,s?.minutes_played??0), saves:Math.max(0,s?.saves??0) })
+      } catch (err) {
+        errors.push(pid)
+        console.error(`Error stats jugador ${pid}:`, err)
       }
-    }))
-
-    await api.upsertMatchPlayerStats({
-      match_id: match.id,
-      player_id: playerId,
-      goals: current.goals ?? 0,
-      assists: current.assists ?? 0,
-      shots_on_goal: current.shots_on_goal ?? 0,
-      shots_out: current.shots_out ?? 0,
-      fouls: current.fouls ?? 0,
-      yellow_cards: current.yellow_cards ?? 0,
-      red_cards: current.red_cards ?? 0,
-      minutes_played: nextMinutesPlayed,
-      saves: current.saves ?? 0
-    })
+    }
+    return errors
   }
+
+  const autoSaveAll = async () => {
+    try {
+      setSaveStatus('saving')
+      await persistAllPlayerStats()
+      await persistRivalStats()
+      setSaveStatus('saved')
+      setTimeout(() => setSaveStatus('idle'), 1500)
+    } catch {}
+  }
+
+  // Schedule debounced stat save per player
+  function scheduleStatSave(playerId) {
+    if (statSaveTimers.current.has(playerId)) clearTimeout(statSaveTimers.current.get(playerId))
+    statSaveTimers.current.set(playerId, setTimeout(() => {
+      persistPlayerStats(playerId)
+      statSaveTimers.current.delete(playerId)
+    }, 800))
+  }
+  function flushStatSave(playerId) {
+    if (statSaveTimers.current.has(playerId)) { clearTimeout(statSaveTimers.current.get(playerId)); statSaveTimers.current.delete(playerId) }
+    persistPlayerStats(playerId)
+  }
+  function scheduleRivalSave() {
+    clearTimeout(rivalSaveTimerRef.current)
+    rivalSaveTimerRef.current = setTimeout(() => persistRivalStats(), 800)
+  }
+
+  // ── Stat update ──────────────────────────────────────────────────────
+  const handleUpdatePlayerStat = (playerId, stat, value) => {
+    const clamped = Math.max(0, Number(value) || 0)
+    setPlayerStats(prev => {
+      const updated = { ...(prev[playerId] || emptyStats(playerId)), [stat]: clamped }
+      // Red card → prompt removal from field
+      if (stat === 'red_cards' && clamped > (prev[playerId]?.red_cards ?? 0)) {
+        const onField = onFieldPlayers.find(o => o.player_id === playerId && o.exit_minute === null)
+        if (onField) {
+          const player = players.find(p => p.id === playerId)
+          setRedCardAlert({ playerId, playerName: player ? `${player.name} ${player.surname}`.trim() : 'Jugador', onFieldId: onField.id })
+        }
+      }
+      return { ...prev, [playerId]: updated }
+    })
+    scheduleStatSave(playerId)
+  }
+
+  const handleUpdateRivalStat = (stat, value) => {
+    setRivalStats(prev => ({ ...prev, [stat]: Math.max(0, Number(value) || 0) }))
+    scheduleRivalSave()
+  }
+
+  // ── Field management ─────────────────────────────────────────────────
+  const currentOnField = onFieldPlayers.filter(o => o.exit_minute === null && players.some(p => p.id === o.player_id))
+  const benchPlayers   = players.filter(p => !currentOnField.find(o => o.player_id === p.id))
 
   const handleAddPlayerToField = async (playerId) => {
     if (actionLockRef.current) return
     try {
       actionLockRef.current = true
-      const currentActive = onFieldPlayers.filter((item) => item.exit_minute === null)
-      
-      // Validación 1: máximo 5 jugadores
-      if (currentActive.length >= 5) {
-        alert('Máximo 5 jugadores en pista')
+
+      // Validaciones
+      if (currentOnField.length >= 5) {
+        alert('Máximo 5 jugadores en pista. Realiza un cambio o retira a un jugador primero.')
         return
       }
-      
-      // Validación 2: no duplicados
-      if (currentActive.some((item) => item.player_id === playerId)) {
-        alert('Este jugador ya está en pista')
+      if (currentOnField.some(o => o.player_id === playerId)) {
+        alert('Este jugador ya está en pista.')
         return
       }
-      
-      await api.setPlayerOnField({ match_id: match.id, player_id: playerId, entry_minute: chrono })
+
+      setIsProcessing(true)
+      await api.setPlayerOnField({ match_id:match.id, player_id:playerId, entry_minute:chrono })
+      // Ensure stats entry exists for this player
+      setPlayerStats(prev => ({ ...prev, [playerId]: prev[playerId] || emptyStats(playerId) }))
       await loadMatchData()
-      setShowPlayerSelector(false)
-    } catch (error) {
-      console.error('Error adding player to field:', error)
-      alert('Error al añadir jugador: ' + error.message)
+    } catch (err) {
+      console.error('Error añadiendo jugador:', err)
+      alert('Error al añadir jugador: ' + (err.message || err))
     } finally {
       actionLockRef.current = false
+      setIsProcessing(false)
     }
   }
 
-  const handleRemovePlayerFromQuintet = async (onFieldId) => {
+  const handleRemoveFromField = async (onFieldId) => {
     setConfirmDialog({
       isOpen: true,
-      message: '¿Eliminar jugador del quinteto?',
+      message: '¿Retirar este jugador de la pista?\nSe guardarán sus minutos jugados hasta ahora.',
       onConfirm: async () => {
+        if (actionLockRef.current) return
         try {
-          if (actionLockRef.current) return
           actionLockRef.current = true
-          const onField = onFieldPlayers.find((item) => item.id === onFieldId)
+          setIsProcessing(true)
+          closeConfirm()
+          const onField = onFieldPlayers.find(o => o.id === onFieldId)
           if (onField) {
-            const playedSeconds = Math.max(0, chrono - (onField.entry_minute ?? 0))
-            await persistPlayerMinutes(onField.player_id, playedSeconds)
+            const secs = Math.max(0, chrono - (onField.entry_minute ?? 0))
+            await persistPlayerMinutes(onField.player_id, secs)
           }
           await api.setPlayerOffField(onFieldId, chrono)
           await loadMatchData()
-          setConfirmDialog({ isOpen: false, message: '', onConfirm: null, onCancel: null })
-        } catch (error) {
-          console.error('Error removing player from field:', error)
-          alert('Error al eliminar jugador: ' + error.message)
-          setConfirmDialog({ isOpen: false, message: '', onConfirm: null, onCancel: null })
+        } catch (err) {
+          console.error('Error retirando jugador:', err)
+          alert('Error al retirar jugador: ' + (err.message || err))
         } finally {
           actionLockRef.current = false
+          setIsProcessing(false)
         }
       },
-      onCancel: () => {
-        setConfirmDialog({ isOpen: false, message: '', onConfirm: null, onCancel: null })
-      }
+      onCancel: closeConfirm
     })
-  }
-
-  const handleRemovePlayerFromField = async (onFieldId) => {
-    const onField = onFieldPlayers.find((item) => item.id === onFieldId)
-    if (onField) {
-      const playedSeconds = Math.max(0, chrono - (onField.entry_minute ?? 0))
-      await persistPlayerMinutes(onField.player_id, playedSeconds)
-    }
-    await api.setPlayerOffField(onFieldId, chrono)
-    loadMatchData()
   }
 
   const handleSubstitution = async (outOnFieldId, inPlayerId) => {
-    if (!outOnFieldId || !inPlayerId || isProcessingSubstitution || actionLockRef.current) return
-    
+    if (!outOnFieldId || !inPlayerId || actionLockRef.current) return
+
+    // Guard: incoming player shouldn't be on field already
+    if (currentOnField.some(o => o.player_id === inPlayerId)) {
+      alert('Ese jugador ya está en pista.')
+      return
+    }
+
     try {
       actionLockRef.current = true
-      setIsProcessingSubstitution(true)
-      const outgoing = onFieldPlayers.find((item) => item.id === outOnFieldId)
+      setIsProcessing(true)
+      const outgoing = onFieldPlayers.find(o => o.id === outOnFieldId)
       if (outgoing) {
-        const playedSeconds = Math.max(0, chrono - (outgoing.entry_minute ?? 0))
-        await persistPlayerMinutes(outgoing.player_id, playedSeconds)
+        const secs = Math.max(0, chrono - (outgoing.entry_minute ?? 0))
+        await persistPlayerMinutes(outgoing.player_id, secs)
       }
       await api.setPlayerOffField(outOnFieldId, chrono)
-      await api.setPlayerOnField({ match_id: match.id, player_id: inPlayerId, entry_minute: chrono })
-      await loadMatchData()
+      await api.setPlayerOnField({ match_id:match.id, player_id:inPlayerId, entry_minute:chrono })
+      setPlayerStats(prev => ({ ...prev, [inPlayerId]: prev[inPlayerId] || emptyStats(inPlayerId) }))
       setSelectedPlayerForChange(null)
-    } catch (error) {
-      console.error('Error during substitution:', error)
-      alert('Error al realizar cambio: ' + error.message)
+      await loadMatchData()
+    } catch (err) {
+      console.error('Error en cambio:', err)
+      alert('Error al realizar el cambio: ' + (err.message || err))
     } finally {
-      setIsProcessingSubstitution(false)
       actionLockRef.current = false
+      setIsProcessing(false)
     }
   }
 
-  const handleUpdatePlayerStat = async (playerId, stat, value) => {
-    setPlayerStats((prev) => ({
-      ...prev,
-      [playerId]: {
-        ...(prev[playerId] || {}),
-        [stat]: value
-      }
-    }))
-  }
-
-  const persistPlayerStats = async (playerId) => {
-    const current = playerStats[playerId] || {}
-    await api.upsertMatchPlayerStats({
-      match_id: match.id,
-      player_id: playerId,
-      goals: current.goals ?? 0,
-      assists: current.assists ?? 0,
-      shots_on_goal: current.shots_on_goal ?? 0,
-      shots_out: current.shots_out ?? 0,
-      fouls: current.fouls ?? 0,
-      yellow_cards: current.yellow_cards ?? 0,
-      red_cards: current.red_cards ?? 0,
-      minutes_played: current.minutes_played ?? 0,
-      saves: current.saves ?? 0
-    })
-  }
-
-  const persistAllPlayerStats = async () => {
-    const entries = Object.entries(playerStats)
-    const errors = []
-    for (const [playerId, stats] of entries) {
-      try {
-        await api.upsertMatchPlayerStats({
-          match_id: match.id,
-          player_id: playerId,
-          goals: Math.max(0, stats?.goals ?? 0),
-          assists: Math.max(0, stats?.assists ?? 0),
-          shots_on_goal: Math.max(0, stats?.shots_on_goal ?? 0),
-          shots_out: Math.max(0, stats?.shots_out ?? 0),
-          fouls: Math.max(0, stats?.fouls ?? 0),
-          yellow_cards: Math.max(0, stats?.yellow_cards ?? 0),
-          red_cards: Math.max(0, stats?.red_cards ?? 0),
-          minutes_played: Math.max(0, stats?.minutes_played ?? 0),
-          saves: Math.max(0, stats?.saves ?? 0)
-        })
-      } catch (error) {
-        console.error(`Error saving stats for player ${playerId}:`, error)
-        errors.push(`Jugador ${playerId}: ${error.message}`)
-      }
-    }
-    if (errors.length > 0) {
-      console.warn('Some player stats failed to save:', errors)
-    }
-  }
-
-  const handleUpdateRivalStat = async (stat, value) => {
-    setRivalStats((prev) => ({ ...prev, [stat]: value }))
-  }
-
-  const persistRivalStats = async () => {
+  // ── Red card removal prompt ──────────────────────────────────────────
+  const handleRedCardDismiss = () => setRedCardAlert(null)
+  const handleRedCardRemove  = async () => {
+    if (!redCardAlert) return
+    const { onFieldId } = redCardAlert
+    setRedCardAlert(null)
+    // Remove without confirm (user just confirmed via the alert)
+    if (actionLockRef.current) return
     try {
-      await api.upsertRivalTeamStats({
-        match_id: match.id,
-        goals: Math.max(0, rivalStats.goals ?? 0),
-        shots_on_goal: Math.max(0, rivalStats.shots_on_goal ?? 0),
-        fouls: Math.max(0, rivalStats.fouls ?? 0),
-        yellow_cards: Math.max(0, rivalStats.yellow_cards ?? 0),
-        red_cards: Math.max(0, rivalStats.red_cards ?? 0)
-      })
-    } catch (error) {
-      console.error('Error saving rival stats:', error)
+      actionLockRef.current = true
+      setIsProcessing(true)
+      const onField = onFieldPlayers.find(o => o.id === onFieldId)
+      if (onField) {
+        const secs = Math.max(0, chrono - (onField.entry_minute ?? 0))
+        await persistPlayerMinutes(onField.player_id, secs)
+      }
+      await api.setPlayerOffField(onFieldId, chrono)
+      await loadMatchData()
+    } catch (err) {
+      console.error('Error retirando jugador expulsado:', err)
+    } finally {
+      actionLockRef.current = false
+      setIsProcessing(false)
     }
   }
 
-  const persistMatchNotes = async () => {
-    await api.updateMatchNotes({
-      match_id: match.id,
-      notes: matchNotes
-    })
-  }
-
-  const currentOnFieldPlayers = onFieldPlayers.filter(
-    (o) => o.exit_minute === null && players.some((p) => p.id === o.player_id)
-  )
-  const benchPlayers = players.filter((p) => !currentOnFieldPlayers.find((o) => o.player_id === p.id))
-
-  const positionColors = {
-    'Portero': '#FF6B6B',
-    'Cierre': '#4ECDC4',
-    'Ala Diestro': '#45B7D1',
-    'Ala Zurdo': '#96CEB4',
-    'Pivot': '#FFEAA7'
-  }
-
-  const totalTeamGoals = Object.values(playerStats).reduce((sum, item) => sum + (item?.goals ?? 0), 0)
+  // ── Finalize ─────────────────────────────────────────────────────────
+  const totalTeamGoals  = Object.values(playerStats).reduce((s, p) => s + (p?.goals ?? 0), 0)
   const totalRivalGoals = rivalStats.goals ?? 0
-  const isHome = match.is_home !== false
+  const isHome   = match.is_home !== false
   const homeScore = isHome ? totalTeamGoals : totalRivalGoals
   const awayScore = isHome ? totalRivalGoals : totalTeamGoals
 
-  const handleFinalizeMatch = async () => {
+  const handleFinalizeMatch = () => {
+    if (match.status === 'finished') {
+      alert('Este partido ya fue finalizado.')
+      return
+    }
     setConfirmDialog({
       isOpen: true,
-      message: `¿Finalizar partido?
-${isHome ? 'Torrenueva' : match.rival_team_name} ${homeScore} - ${awayScore} ${isHome ? match.rival_team_name : 'Torrenueva'}`,
+      message: `¿Finalizar partido?\n\n${isHome ? 'Torrenueva' : match.rival_team_name} ${homeScore} - ${awayScore} ${isHome ? match.rival_team_name : 'Torrenueva'}\n\nSe guardarán todas las estadísticas.`,
       onConfirm: async () => {
+        closeConfirm()
         try {
           setIsChronoRunning(false)
-          console.log('Saving all match data before finalize...')
+          setIsProcessing(true)
+          setSaveStatus('saving')
 
-          // Save all stats with error handling
-          await persistAllPlayerStats()
-          console.log('Player stats saved')
-          
+          // 1. Save all player stats
+          const statErrors = await persistAllPlayerStats()
+          // 2. Save rival stats
           await persistRivalStats()
-          console.log('Rival stats saved')
-
-          const activePlayers = onFieldPlayers.filter((item) => item.exit_minute === null)
-          for (const active of activePlayers) {
-            const playedSeconds = Math.max(0, chrono - (active.entry_minute ?? 0))
-            await persistPlayerMinutes(active.player_id, playedSeconds)
-            await api.setPlayerOffField(active.id, chrono)
+          // 3. Record final minutes for active players and remove from field
+          const active = onFieldPlayers.filter(o => o.exit_minute === null)
+          for (const a of active) {
+            const secs = Math.max(0, chrono - (a.entry_minute ?? 0))
+            await persistPlayerMinutes(a.player_id, secs)
+            await api.setPlayerOffField(a.id, chrono)
           }
-          console.log('Final player minutes saved')
-
-          await api.finalizeMatch({
-            match_id: match.id,
-            home_goals: homeScore,
-            away_goals: awayScore,
-            notes: matchNotes,
-            ended_at: new Date().toISOString()
-          })
-          console.log('Match finalized successfully')
+          // 4. Save notes
+          await api.updateMatchNotes({ match_id:match.id, notes:matchNotes })
+          // 5. Finalize
+          await api.finalizeMatch({ match_id:match.id, home_goals:homeScore, away_goals:awayScore, notes:matchNotes, ended_at:new Date().toISOString() })
 
           localStorage.removeItem(draftKey)
-          alert('Partido finalizado correctamente')
+          setSaveStatus('saved')
+
+          const msg = statErrors.length > 0
+            ? `Partido finalizado con advertencias.\n${statErrors.length} estadística(s) de jugador no se pudieron guardar.`
+            : 'Partido finalizado y guardado correctamente.'
+          alert(msg)
           onClose()
-          setConfirmDialog({ isOpen: false, message: '', onConfirm: null, onCancel: null })
-        } catch (error) {
-          console.error('Error finalizing match:', error)
-          alert('Error al finalizar partido: ' + error.message)
-          setConfirmDialog({ isOpen: false, message: '', onConfirm: null, onCancel: null })
+        } catch (err) {
+          console.error('Error finalizando partido:', err)
+          setSaveStatus('error')
+          alert('Error al finalizar el partido: ' + (err.message || err) + '\n\nLos datos se han guardado en borrador local.')
+        } finally {
+          setIsProcessing(false)
         }
       },
-      onCancel: () => {
-        setConfirmDialog({ isOpen: false, message: '', onConfirm: null, onCancel: null })
-      }
+      onCancel: closeConfirm
     })
   }
 
+  const handleResetChrono = () => {
+    setConfirmDialog({
+      isOpen: true,
+      message: '¿Reiniciar el cronómetro a 00:00?\n\nAtención: esto afectará al cálculo de minutos jugados de los jugadores en pista.',
+      onConfirm: () => { setChrono(0); closeConfirm() },
+      onCancel:  closeConfirm
+    })
+  }
+
+  function closeConfirm() { setConfirmDialog({ isOpen:false, message:'', onConfirm:null, onCancel:null }) }
+
+  // ── Stepper component ────────────────────────────────────────────────
+  function StatStepper({ value, onChange, onBlur, min=0, max }) {
+    const v = Number(value) || 0
+    return (
+      <div className="stepper">
+        <button type="button" onClick={() => { const nv = Math.max(min, v-1); onChange(nv); if (onBlur) onBlur() }}>-</button>
+        <input type="number" value={v} min={min} max={max}
+          onChange={e => onChange(Math.max(min, Math.round(Number(e.target.value)) || 0))}
+          onBlur={() => onBlur?.()}
+        />
+        <button type="button" onClick={() => { const nv = max !== undefined ? Math.min(max, v+1) : v+1; onChange(nv); if (onBlur) onBlur() }}>+</button>
+      </div>
+    )
+  }
+
+  // ── Position colors ──────────────────────────────────────────────────
+  const positionColors = { 'Portero':'#FF6B6B', 'Cierre':'#4ECDC4', 'Ala Diestro':'#45B7D1', 'Ala Zurdo':'#96CEB4', 'Pivot':'#FFEAA7' }
+
+  const saveStatusLabel = saveStatus === 'saving' ? 'Guardando...' : saveStatus === 'saved' ? 'Guardado' : saveStatus === 'error' ? 'Error al guardar' : null
+  const saveStatusColor = saveStatus === 'saving' ? '#f59e0b' : saveStatus === 'saved' ? '#22c55e' : '#ef4444'
+
+  // ── Render ────────────────────────────────────────────────────────────
   return (
-    <div className="match-tracker-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="match-tracker-modal" onClick={e => e.stopPropagation()}>
       <div className="modal-header">
-        <h2>{match.rival_team_name} - {match.place}</h2>
-        <button className="modal-close" onClick={onClose}>✕</button>
+        <h2 style={{fontSize:16}}>{match.rival_team_name} · {match.place}</h2>
+        <div style={{display:'flex', alignItems:'center', gap:10}}>
+          {saveStatusLabel && (
+            <span style={{fontSize:11, color:saveStatusColor, fontWeight:600}}>{saveStatusLabel}</span>
+          )}
+          {isProcessing && <span style={{fontSize:11, color:'#f59e0b', fontWeight:600}}>Procesando...</span>}
+          <button className="btn btn-secondary btn-secondary-small" style={{marginTop:0}} onClick={autoSaveAll} disabled={isProcessing}>
+            Guardar ahora
+          </button>
+          <button className="modal-close" onClick={onClose}><XIcon size={14}/></button>
+        </div>
       </div>
 
-      <button
-        className={`chrono-float-toggle ${isChronoRunning ? 'running' : ''}`}
-        onClick={() => setIsChronoRunning(!isChronoRunning)}
-        aria-label={isChronoRunning ? 'Pausar cronómetro' : 'Reanudar cronómetro'}
-        title={isChronoRunning ? 'Pausar cronómetro' : 'Reanudar cronómetro'}
-      >
-        <span className="chrono-float-icon">{isChronoRunning ? '⏸' : '▶'}</span>
+      {/* Float chrono toggle */}
+      <button className={`chrono-float-toggle ${isChronoRunning ? 'running' : ''}`}
+        onClick={() => setIsChronoRunning(p => !p)} disabled={isProcessing}
+        aria-label={isChronoRunning ? 'Pausar' : 'Reanudar'}>
+        <span className="chrono-float-icon">{isChronoRunning ? <PauseIcon size={18}/> : <PlayIcon size={18}/>}</span>
         <span>{isChronoRunning ? 'Pausar' : 'Reanudar'}</span>
       </button>
 
       <div className="tracker-content">
-        {/* Global Chrono */}
+
+        {/* Chrono */}
         <div className="chrono-section">
           <div className="chrono-title-row">
-            <h3>Tiempo del partido {isChronoRunning && '▶️ EN DIRECTO'}</h3>
+            <h3>Tiempo del partido {isChronoRunning && <span style={{color:'#2ecc71',fontSize:12}}>● EN DIRECTO</span>}</h3>
           </div>
-          <div className="chrono-display" style={{ animation: isChronoRunning ? 'pulse 1s infinite' : 'none', color: isChronoRunning ? '#2ecc71' : '#333' }}>{formatChrono(chrono)}</div>
+          <div className="chrono-display" style={{animation: isChronoRunning ? 'pulse 1s infinite' : 'none', color: isChronoRunning ? '#2ecc71' : '#333'}}>
+            {formatChrono(chrono)}
+          </div>
           <div className="chrono-actions">
-            <button
-              className={`btn-chrono ${isChronoRunning ? 'running' : ''}`}
-              onClick={() => setIsChronoRunning(!isChronoRunning)}
-            >
-              {isChronoRunning ? '⏸' : '▶'} {isChronoRunning ? 'Pausar' : 'Reanudar'}
+            <button className={`btn-chrono ${isChronoRunning ? 'running' : ''}`}
+              onClick={() => setIsChronoRunning(p => !p)} disabled={isProcessing}>
+              {isChronoRunning ? <PauseIcon size={14}/> : <PlayIcon size={14}/>} {isChronoRunning ? 'Pausar' : 'Reanudar'}
             </button>
-            <button className="btn-secondary btn-secondary-small" onClick={() => setChrono(0)}>
+            <button className="btn-secondary btn-secondary-small" onClick={handleResetChrono} disabled={isProcessing}>
               Reiniciar
             </button>
           </div>
         </div>
 
+        {/* Scoreboard */}
         <div className="live-scoreboard">
           <div className="score-team">
             <span className="score-label">{isHome ? 'Torrenueva (Local)' : match.rival_team_name}</span>
@@ -593,109 +538,60 @@ ${isHome ? 'Torrenueva' : match.rival_team_name} ${homeScore} - ${awayScore} ${i
           </div>
         </div>
 
-        {/* On-Field Players */}
+        {/* On-field players */}
         <div className="on-field-section">
-          <h3>En Pista ({currentOnFieldPlayers.length})</h3>
+          <h3>En Pista ({currentOnField.length}/5)
+            {currentOnField.length < 5 && <span style={{color:'#f59e0b', fontSize:12, marginLeft:8}}>· {5 - currentOnField.length} plaza(s) libre(s)</span>}
+            {currentOnField.length === 5 && <span style={{color:'#22c55e', fontSize:12, marginLeft:8}}>· Quinteto completo</span>}
+          </h3>
           <div className="on-field-table-container">
             <table className="on-field-table">
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th>Nombre</th>
-                  <th>Posición</th>
-                  {/* Stats headers */}
-                  <th>Goles</th>
-                  <th>Asist.</th>
-                  <th>T.Puerta</th>
-                  <th>Fuera</th>
-                  <th>Faltas</th>
-                  <th>🟨</th>
-                  <th>🟥</th>
-                  <th>Tiempo</th>
-                  <th>Acciones</th>
+                  <th>#</th><th>Nombre</th><th>Pos.</th>
+                  <th>Goles</th><th>Asist.</th><th>T.Puerta</th><th>Fuera</th><th>Faltas</th>
+                  <th><span style={{display:'inline-block',width:14,height:14,borderRadius:3,background:'#fbbf24',verticalAlign:'middle'}}/></th>
+                  <th><span style={{display:'inline-block',width:14,height:14,borderRadius:3,background:'#ef4444',verticalAlign:'middle'}}/></th>
+                  <th>Tiempo</th><th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {currentOnFieldPlayers.map((onField) => {
-                  const player = players.find((p) => p.id === onField.player_id)
-                  const stats = playerStats[onField.player_id] || {}
+                {currentOnField.map(onField => {
+                  const player = players.find(p => p.id === onField.player_id)
+                  const st = playerStats[onField.player_id] || {}
                   if (!player) return null
-
+                  const pid = onField.player_id
                   return (
                     <tr key={onField.id} className="player-row-stats">
                       <td className="dorsal-col">#{player.dorsal}</td>
                       <td className="name-col">{player.name} {player.surname}</td>
                       <td className="position-col">
-                        <span
-                          className="position-badge-small"
-                          style={{ backgroundColor: positionColors[player.position] }}
-                        >
-                          {player.position.slice(0, 3)}
+                        <span className="position-badge-small" style={{backgroundColor: positionColors[player.position] || '#999'}}>
+                          {(player.position || '?').slice(0,3)}
                         </span>
                       </td>
-                      
-                      {/* Stats */}
-                      <td>
-                        <StatStepper value={stats.goals ?? 0} onChange={(v)=>{handleUpdatePlayerStat(onField.player_id, 'goals', v)}} onBlur={()=>persistPlayerStats(onField.player_id)} />
-                      </td>
-                      <td>
-                        <StatStepper value={stats.assists ?? 0} onChange={(v)=>{handleUpdatePlayerStat(onField.player_id, 'assists', v)}} onBlur={()=>persistPlayerStats(onField.player_id)} />
-                      </td>
-                      <td>
-                        <StatStepper value={stats.shots_on_goal ?? 0} onChange={(v)=>{handleUpdatePlayerStat(onField.player_id, 'shots_on_goal', v)}} onBlur={()=>persistPlayerStats(onField.player_id)} />
-                      </td>
-                      <td>
-                        <StatStepper value={stats.shots_out ?? 0} onChange={(v)=>{handleUpdatePlayerStat(onField.player_id, 'shots_out', v)}} onBlur={()=>persistPlayerStats(onField.player_id)} />
-                      </td>
-                      <td>
-                        <StatStepper value={stats.fouls ?? 0} onChange={(v)=>{handleUpdatePlayerStat(onField.player_id, 'fouls', v)}} onBlur={()=>persistPlayerStats(onField.player_id)} />
-                      </td>
-                      <td>
-                        <StatStepper value={stats.yellow_cards ?? 0} onChange={(v)=>{handleUpdatePlayerStat(onField.player_id, 'yellow_cards', v)}} onBlur={()=>persistPlayerStats(onField.player_id)} />
-                      </td>
-                      <td>
-                        <StatStepper value={stats.red_cards ?? 0} onChange={(v)=>{handleUpdatePlayerStat(onField.player_id, 'red_cards', v)}} onBlur={()=>persistPlayerStats(onField.player_id)} />
-                      </td>
-                      <td>
-                        <span className="live-time-badge">{getPlayerLiveTime(onField)}</span>
-                      </td>
+                      <td><StatStepper value={st.goals??0}         onChange={v=>handleUpdatePlayerStat(pid,'goals',v)}         onBlur={()=>flushStatSave(pid)}/></td>
+                      <td><StatStepper value={st.assists??0}       onChange={v=>handleUpdatePlayerStat(pid,'assists',v)}       onBlur={()=>flushStatSave(pid)}/></td>
+                      <td><StatStepper value={st.shots_on_goal??0} onChange={v=>handleUpdatePlayerStat(pid,'shots_on_goal',v)} onBlur={()=>flushStatSave(pid)}/></td>
+                      <td><StatStepper value={st.shots_out??0}     onChange={v=>handleUpdatePlayerStat(pid,'shots_out',v)}     onBlur={()=>flushStatSave(pid)}/></td>
+                      <td><StatStepper value={st.fouls??0}         onChange={v=>handleUpdatePlayerStat(pid,'fouls',v)}         onBlur={()=>flushStatSave(pid)}/></td>
+                      <td><StatStepper value={st.yellow_cards??0}  onChange={v=>handleUpdatePlayerStat(pid,'yellow_cards',v)}  onBlur={()=>flushStatSave(pid)}/></td>
+                      <td><StatStepper value={st.red_cards??0}     onChange={v=>handleUpdatePlayerStat(pid,'red_cards',v)}     onBlur={()=>flushStatSave(pid)}/></td>
+                      <td><span className="live-time-badge">{getPlayerLiveTime(onField)}</span></td>
                       <td className="actions-col">
-                        <button className="btn-small-action" onClick={() => setSelectedPlayerForChange(onField.id)}>
-                          Cambiar
-                        </button>
-                        <button
-                          type="button"
-                          style={deleteButtonStyle}
-                          onMouseEnter={(event) => {
-                            event.currentTarget.style.background = '#ffecec'
-                            event.currentTarget.style.color = '#a82d2d'
-                            event.currentTarget.style.borderColor = 'rgba(200,69,69,0.55)'
-                            event.currentTarget.style.transform = 'translateY(-1px) scale(1.03)'
-                            event.currentTarget.style.boxShadow = '0 6px 14px rgba(200,69,69,0.16)'
-                          }}
-                          onMouseLeave={(event) => {
-                            event.currentTarget.style.background = '#fff'
-                            event.currentTarget.style.color = '#c84545'
-                            event.currentTarget.style.borderColor = 'rgba(200,69,69,0.35)'
-                            event.currentTarget.style.transform = 'none'
-                            event.currentTarget.style.boxShadow = 'none'
-                          }}
-                          onMouseDown={(event) => {
-                            event.currentTarget.style.transform = 'translateY(0) scale(0.98)'
-                          }}
-                          onMouseUp={(event) => {
-                            event.currentTarget.style.transform = 'translateY(-1px) scale(1.03)'
-                          }}
-                          onClick={() => handleRemovePlayerFromQuintet(onField.id)}
-                          title="Eliminar del quinteto"
-                          aria-label="Eliminar del quinteto"
-                        >
-                          ✕
+                        <button className="btn-small-action" onClick={() => setSelectedPlayerForChange(onField.id)} disabled={isProcessing}>Cambiar</button>
+                        <button type="button" style={deleteButtonStyle} onClick={() => handleRemoveFromField(onField.id)} disabled={isProcessing} title="Retirar de pista" aria-label="Retirar de pista"
+                          onMouseEnter={e=>{e.currentTarget.style.background='#ffecec';e.currentTarget.style.color='#a82d2d';e.currentTarget.style.borderColor='rgba(200,69,69,0.55)';e.currentTarget.style.transform='translateY(-1px) scale(1.03)'}}
+                          onMouseLeave={e=>{e.currentTarget.style.background='#fff';e.currentTarget.style.color='#c84545';e.currentTarget.style.borderColor='rgba(200,69,69,0.35)';e.currentTarget.style.transform='none'}}>
+                          <XIcon size={12}/>
                         </button>
                       </td>
                     </tr>
                   )
                 })}
+                {currentOnField.length === 0 && (
+                  <tr><td colSpan={13} style={{textAlign:'center',color:'#999',padding:'16px',fontStyle:'italic'}}>No hay jugadores en pista</td></tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -704,109 +600,117 @@ ${isHome ? 'Torrenueva' : match.rival_team_name} ${homeScore} - ${awayScore} ${i
         {/* Bench */}
         <div className="bench-section">
           <h3>Suplentes ({benchPlayers.length})</h3>
-          {currentOnFieldPlayers.length >= 5 && (
-            <p className="bench-limit-note">Quinteto completo: máximo 5 titulares en pista.</p>
+          {currentOnField.length >= 5 && (
+            <p className="bench-limit-note" style={{color:'#f59e0b',fontSize:12,margin:'4px 0'}}>
+              Quinteto completo. Para añadir a alguien usa "Cambiar" o retira un jugador primero.
+            </p>
           )}
           <div className="bench-list">
-            {benchPlayers.map((player) => (
-              <button
-                key={player.id}
-                className="bench-player"
+            {benchPlayers.map(player => (
+              <button key={player.id} className="bench-player"
                 onClick={() => handleAddPlayerToField(player.id)}
-                disabled={currentOnFieldPlayers.length >= 5}
-              >
+                disabled={currentOnField.length >= 5 || isProcessing}>
                 #{player.dorsal} {player.name}
               </button>
+            ))}
+            {benchPlayers.length === 0 && (
+              <span style={{fontSize:12,color:'#999',fontStyle:'italic'}}>Todos los jugadores están en pista</span>
+            )}
+          </div>
+        </div>
+
+        {/* Substitution panel */}
+        {selectedPlayerForChange && (
+          <div className="substitution-modal">
+            <h4>Selecciona el jugador que entra {isProcessing && '(procesando...)'}</h4>
+            {benchPlayers.length === 0
+              ? <p style={{color:'#999',fontSize:13}}>No hay jugadores disponibles en el banquillo.</p>
+              : <div className="substitution-list">
+                  {benchPlayers.map(player => (
+                    <button key={player.id} onClick={() => handleSubstitution(selectedPlayerForChange, player.id)} disabled={isProcessing}>
+                      #{player.dorsal} {player.name}
+                    </button>
+                  ))}
+                </div>
+            }
+            <button className="btn-secondary" onClick={() => setSelectedPlayerForChange(null)} disabled={isProcessing}>Cancelar</button>
+          </div>
+        )}
+
+        {/* Rival stats */}
+        <div className="rival-section">
+          <h3>Rival: {match.rival_team_name}</h3>
+          <div className="rival-stats-grid">
+            {[
+              ['goals','Goles'], ['shots_on_goal','Tiros a puerta'], ['fouls','Faltas'],
+              ['yellow_cards','Amarillas'], ['red_cards','Rojas']
+            ].map(([key, label]) => (
+              <label key={key} className="rival-stat-field">
+                <span>{label}</span>
+                <StatStepper value={rivalStats[key]??0} onChange={v=>handleUpdateRivalStat(key,v)} onBlur={persistRivalStats}/>
+              </label>
             ))}
           </div>
         </div>
 
-        {/* Substitution Selection */}
-        {selectedPlayerForChange && (
-          <div className="substitution-modal">
-            <h4>¿Con quién cambiar? {isProcessingSubstitution && '(procesando...)'}</h4>
-            <div className="substitution-list">
-              {benchPlayers.map((player) => (
-                <button
-                  key={player.id}
-                  onClick={() => handleSubstitution(selectedPlayerForChange, player.id)}
-                  disabled={isProcessingSubstitution}
-                >
-                  #{player.dorsal} {player.name}
-                </button>
-              ))}
-            </div>
-            <button className="btn-secondary" onClick={() => setSelectedPlayerForChange(null)} disabled={isProcessingSubstitution}>
-              Cancelar
-            </button>
-          </div>
-        )}
-
-        {/* Rival Stats */}
-        <div className="rival-section">
-          <h3>Rival: {match.rival_team_name}</h3>
-          <div className="rival-stats-grid">
-            <label className="rival-stat-field">
-              <span>Goles</span>
-              <StatStepper value={rivalStats.goals ?? 0} onChange={(v)=>handleUpdateRivalStat('goals', v)} onBlur={persistRivalStats} />
-            </label>
-            <label className="rival-stat-field">
-              <span>Tiros a puerta</span>
-              <StatStepper value={rivalStats.shots_on_goal ?? 0} onChange={(v)=>handleUpdateRivalStat('shots_on_goal', v)} onBlur={persistRivalStats} />
-            </label>
-            <label className="rival-stat-field">
-              <span>Faltas</span>
-              <StatStepper value={rivalStats.fouls ?? 0} onChange={(v)=>handleUpdateRivalStat('fouls', v)} onBlur={persistRivalStats} />
-            </label>
-            <label className="rival-stat-field">
-              <span>Amarillas</span>
-              <StatStepper value={rivalStats.yellow_cards ?? 0} onChange={(v)=>handleUpdateRivalStat('yellow_cards', v)} onBlur={persistRivalStats} />
-            </label>
-            <label className="rival-stat-field">
-              <span>Rojas</span>
-              <StatStepper value={rivalStats.red_cards ?? 0} onChange={(v)=>handleUpdateRivalStat('red_cards', v)} onBlur={persistRivalStats} />
-            </label>
-          </div>
-        </div>
-
-        <div className="match-footer-actions">
-          <button className="btn-secondary" onClick={onClose}>Salir</button>
-          <button className="btn-danger" onClick={handleFinalizeMatch}>Finalizar partido</button>
-        </div>
-
+        {/* Notes */}
         <div className="match-notes-section">
-          <label htmlFor="match-notes">Anotaciones</label>
-          <textarea
-            id="match-notes"
-            rows={4}
-            value={matchNotes}
-            onChange={(e) => setMatchNotes(e.target.value)}
-            onBlur={persistMatchNotes}
-            placeholder="Escribe aquí observaciones del partido..."
+          <label htmlFor="match-notes">Anotaciones del partido</label>
+          <textarea id="match-notes" rows={4} value={matchNotes}
+            onChange={e=>setMatchNotes(e.target.value)}
+            onBlur={() => api.updateMatchNotes({match_id:match.id, notes:matchNotes}).catch(console.error)}
+            placeholder="Observaciones, incidencias, tácticas usadas..."
           />
         </div>
 
-          {/* Custom Confirmation Dialog */}
-          {confirmDialog.isOpen && (
-            <div style={confirmDialogStyles.overlay} onClick={() => confirmDialog.onCancel?.()}>
-              <div style={confirmDialogStyles.content} onClick={(e) => e.stopPropagation()}>
-                <div style={confirmDialogStyles.message}>
-                  {confirmDialog.message.split('\n').map((line, i) => (
-                    <div key={i}>{line}</div>
-                  ))}
-                </div>
-                <div style={confirmDialogStyles.buttons}>
-                  <button className="btn-secondary" style={confirmDialogStyles.button} onClick={() => confirmDialog.onCancel?.()}>
-                    Cancelar
-                  </button>
-                  <button className="btn-danger" style={confirmDialogStyles.button} onClick={() => confirmDialog.onConfirm?.()}>
-                    Confirmar
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+        {/* Footer actions */}
+        <div className="match-footer-actions">
+          <button className="btn-secondary" onClick={onClose}>Salir sin finalizar</button>
+          <button className="btn-danger" onClick={handleFinalizeMatch} disabled={isProcessing}>
+            Finalizar partido
+          </button>
+        </div>
       </div>
+
+      {/* Confirm dialog */}
+      {confirmDialog.isOpen && (
+        <div style={dlgOverlay} onClick={() => confirmDialog.onCancel?.()}>
+          <div style={dlgContent} onClick={e=>e.stopPropagation()}>
+            <div style={dlgMsg}>{confirmDialog.message.split('\n').map((l,i)=><div key={i}>{l || <br/>}</div>)}</div>
+            <div style={{display:'flex',gap:10}}>
+              <button className="btn-secondary" style={dlgBtn} onClick={()=>confirmDialog.onCancel?.()}>Cancelar</button>
+              <button className="btn-danger"    style={dlgBtn} onClick={()=>confirmDialog.onConfirm?.()}>Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Red card expulsion alert */}
+      {redCardAlert && (
+        <div style={dlgOverlay} onClick={handleRedCardDismiss}>
+          <div style={{...dlgContent, borderTop:'4px solid #ef4444'}} onClick={e=>e.stopPropagation()}>
+            <div style={{...dlgMsg, color:'#ef4444'}}>🟥 Tarjeta roja</div>
+            <div style={dlgMsg}><strong>{redCardAlert.playerName}</strong> ha recibido tarjeta roja.<br/>¿Retirar al jugador de la pista?</div>
+            <div style={{display:'flex',gap:10}}>
+              <button className="btn-secondary" style={dlgBtn} onClick={handleRedCardDismiss}>No, mantener</button>
+              <button className="btn-danger"    style={dlgBtn} onClick={handleRedCardRemove}>Sí, retirar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
+// ── Styles ─────────────────────────────────────────────────────────────
+const deleteButtonStyle = {
+  display:'inline-flex', alignItems:'center', justifyContent:'center',
+  width:'30px', height:'30px', marginLeft:'6px',
+  border:'1px solid rgba(200,69,69,0.35)', borderRadius:'999px',
+  background:'#fff', color:'#c84545', fontSize:'16px', fontWeight:700,
+  cursor:'pointer', transition:'all 0.18s ease'
+}
+const dlgOverlay = { position:'fixed', inset:0, background:'rgba(11,11,11,0.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10000, backdropFilter:'blur(3px)' }
+const dlgContent = { background:'linear-gradient(180deg,#fff 0%,#f8fbf7 100%)', border:'1px solid rgba(31,111,35,0.12)', borderRadius:'18px', padding:'26px 24px 22px', width:'min(420px,calc(100vw - 32px))', boxShadow:'0 24px 70px rgba(0,0,0,0.28)' }
+const dlgMsg     = { color:'var(--text-dark)', fontSize:'15px', fontWeight:600, lineHeight:1.6, marginBottom:'20px', textAlign:'center', whiteSpace:'pre-line' }
+const dlgBtn     = { flex:1, minHeight:'42px', padding:'10px 16px', border:'none', borderRadius:'10px', fontWeight:700, cursor:'pointer' }

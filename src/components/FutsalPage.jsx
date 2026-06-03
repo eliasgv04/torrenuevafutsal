@@ -3,6 +3,8 @@ import { api } from '../lib/api'
 import PlayerManagement from './PlayerManagement'
 import MatchManagement from './MatchManagement'
 import MatchTracker from './MatchTracker'
+import { ArrowLeftIcon, UsersIcon, TrophyIcon, BarChartIcon, XIcon } from './Icons'
+import FutsalStats from './FutsalStats'
 
 export default function FutsalPage({ teamId, onBack }) {
   const [view, setView] = useState('menu') // menu, players, matches, tracker
@@ -10,7 +12,7 @@ export default function FutsalPage({ teamId, onBack }) {
   const [selectedMatch, setSelectedMatch] = useState(null)
 
   useEffect(() => {
-    if (view === 'tracker' || view === 'matches') {
+    if (view === 'tracker' || view === 'matches' || view === 'stats') {
       loadPlayers()
     }
   }, [view])
@@ -24,7 +26,7 @@ export default function FutsalPage({ teamId, onBack }) {
     <div className="futsal-page">
       {/* Header */}
       <div className="page-header">
-        <button className="btn-back" onClick={onBack}>← Volver</button>
+        <button className="btn-back" onClick={onBack} style={{display:'flex',alignItems:'center',gap:6}}><ArrowLeftIcon size={15}/> Volver</button>
         <h1>Futsal - Gestión de Partidos</h1>
       </div>
 
@@ -32,15 +34,15 @@ export default function FutsalPage({ teamId, onBack }) {
       {view === 'menu' && (
         <div className="futsal-menu">
           <button className="menu-btn" onClick={() => setView('players')}>
-            <span className="menu-icon">👥</span>
+            <span className="menu-icon"><UsersIcon size={28}/></span>
             <span>Gestionar Jugadores</span>
           </button>
           <button className="menu-btn" onClick={() => setView('matches')}>
-            <span className="menu-icon">🏆</span>
+            <span className="menu-icon"><TrophyIcon size={28}/></span>
             <span>Gestionar Partidos</span>
           </button>
           <button className="menu-btn" onClick={() => setView('stats')}>
-            <span className="menu-icon">📊</span>
+            <span className="menu-icon"><BarChartIcon size={28}/></span>
             <span>Estadísticas</span>
           </button>
         </div>
@@ -83,14 +85,8 @@ export default function FutsalPage({ teamId, onBack }) {
 
       {/* Stats View */}
       {view === 'stats' && (
-        <div className="futsal-view stats-view">
-          <div className="modal-header">
-            <h2>Estadísticas Futsal</h2>
-            <button className="modal-close" onClick={() => setView('menu')}>✕</button>
-          </div>
-          <p style={{ textAlign: 'center', marginTop: '2rem' }}>
-            Las estadísticas se cargarán desde los partidos registrados.
-          </p>
+        <div className="futsal-view stats-view" style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
+          <FutsalStats teamId={teamId} onClose={() => setView('menu')} />
         </div>
       )}
     </div>

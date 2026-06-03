@@ -663,8 +663,8 @@ export const api = {
 
     const stats = lsGet(LS_PLAYER_CAREER_STATS)
     const idx = stats.findIndex(item=>item.player_id===player_id)
-    const record = { id: uid(), ...payload }
-    if(idx >= 0) stats[idx] = { ...stats[idx], ...record }
+    const record = { id: idx >= 0 ? stats[idx].id : uid(), ...payload }
+    if(idx >= 0) stats[idx] = record
     else stats.push(record)
     lsSet(LS_PLAYER_CAREER_STATS, stats)
     return record

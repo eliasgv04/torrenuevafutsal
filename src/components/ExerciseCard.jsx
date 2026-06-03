@@ -1,4 +1,5 @@
 import React from 'react'
+import { BarChartIcon, StarIcon, RulerIcon, CalendarIcon } from './Icons'
 
 function getCategoryColor(category){
   const colors = {
@@ -23,10 +24,10 @@ export default function ExerciseCard({exercise, onAddRecord, onDelete, onOpenDet
         {exercise.category && <span style={{background:getCategoryColor(exercise.category),color:'#fff',padding:'4px 8px',borderRadius:'6px',fontSize:'11px',whiteSpace:'nowrap',marginLeft:'8px'}}>{exercise.category}</span>}
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginTop:'12px',fontSize:'13px',borderTop:'1px solid #eee',paddingTop:'12px'}}>
-        <div><strong>📊 Veces:</strong> {exercise.totalCount || 0}</div>
-        <div><strong>⭐ Efectividad:</strong> {exercise.effectivenessAvg !== undefined ? Math.round(exercise.effectivenessAvg) : '—'}%</div>
-        <div><strong>📐 Pista:</strong> {exercise.lastDimensions || exercise.dimensions || '—'}</div>
-        <div><strong>📅 Última:</strong> {exercise.lastDate ? new Date(exercise.lastDate).toLocaleDateString('es-ES') : '—'}</div>
+        <div style={{display:'flex',alignItems:'center',gap:4}}><BarChartIcon size={13}/> <strong>Veces:</strong>&nbsp;{exercise.totalCount || 0}</div>
+        <div style={{display:'flex',alignItems:'center',gap:4}}><StarIcon size={13}/> <strong>Efectividad:</strong>&nbsp;{exercise.effectivenessAvg !== undefined ? Math.round(exercise.effectivenessAvg) : '—'}%</div>
+        <div style={{display:'flex',alignItems:'center',gap:4}}><RulerIcon size={13}/> <strong>Pista:</strong>&nbsp;{exercise.lastDimensions || exercise.dimensions || '—'}</div>
+        <div style={{display:'flex',alignItems:'center',gap:4}}><CalendarIcon size={13}/> <strong>Última:</strong>&nbsp;{exercise.lastDate ? new Date(exercise.lastDate).toLocaleDateString('es-ES') : '—'}</div>
       </div>
       <div style={{display:'flex',gap:'10px',flexWrap:'wrap',marginTop:'12px'}}>
         {onAddRecord && <button className="btn" onClick={(e)=>{e.stopPropagation(); onAddRecord()}} style={{marginTop:0,flex:'1 1 180px'}}>+ Agregar registro</button>}

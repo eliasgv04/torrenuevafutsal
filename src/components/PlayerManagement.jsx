@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../lib/api'
+import { ArrowLeftIcon, XIcon } from './Icons'
 
 export default function PlayerManagement({ teamId, onClose }) {
   const [players, setPlayers] = useState([])
@@ -78,7 +79,7 @@ export default function PlayerManagement({ teamId, onClose }) {
     <div className="player-management-modal" onClick={(e) => e.stopPropagation()}>
       <div className="modal-header">
         <h2>Gestión de Jugadores</h2>
-        <button className="modal-close" onClick={onClose}>✕</button>
+        <button className="modal-close" onClick={onClose}><XIcon size={14}/></button>
       </div>
 
       <div className="modal-content">
@@ -165,7 +166,7 @@ export default function PlayerManagement({ teamId, onClose }) {
                             }}
                             title="Eliminar jugador"
                           >
-                            ✕
+                            <XIcon size={12}/>
                           </button>
                         </td>
                       </tr>
@@ -178,7 +179,7 @@ export default function PlayerManagement({ teamId, onClose }) {
         ) : (
           // Player Detail View
           <div className="player-detail-view">
-            <button className="btn-back" onClick={() => setSelectedPlayer(null)}>← Volver</button>
+            <button className="btn-back" onClick={() => setSelectedPlayer(null)} style={{display:'flex',alignItems:'center',gap:6}}><ArrowLeftIcon size={14}/> Volver</button>
             
             <div className="player-header-detail">
               <span className="player-dorsal-large">#{selectedPlayer.dorsal}</span>

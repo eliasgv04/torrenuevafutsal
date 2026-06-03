@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { api } from '../lib/api'
+import { ArrowLeftIcon, XIcon } from './Icons'
 
 const PIZARRA_URL = import.meta.env.BASE_URL + 'pizarra.jpg'
 
@@ -376,7 +377,8 @@ export default function TacticalBoard({ teamId, onClose }) {
   // ── Render ─────────────────────────────────────────────────────────
   return (
     <div style={{
-      height: '100vh', display: 'flex', flexDirection: 'column',
+      position: 'fixed', inset: 0, zIndex: 1000,
+      display: 'flex', flexDirection: 'column',
       background: 'var(--bg)', fontFamily: 'Raleway, sans-serif', overflow: 'hidden',
     }}>
 
@@ -392,7 +394,8 @@ export default function TacticalBoard({ teamId, onClose }) {
           padding: '7px 16px', borderRadius: 8, cursor: 'pointer',
           fontSize: 13, fontWeight: 700, fontFamily: 'Poppins, sans-serif',
           boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-        }}>← Volver</button>
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}><ArrowLeftIcon size={14}/> Volver</button>
         <span style={{ color: '#fff', fontFamily: 'Poppins, sans-serif', fontSize: 18, fontWeight: 700, textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
            Pizarra Táctica
         </span>
@@ -571,7 +574,7 @@ export default function TacticalBoard({ teamId, onClose }) {
                   background: '#fff', color: '#333', fontSize: 10, fontWeight: 700,
                   cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                   padding: 0, lineHeight: 1,
-                }}>✕</button>
+                }}><XIcon size={10}/></button>
               )}
             </div>
           ))}

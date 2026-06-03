@@ -28,7 +28,7 @@ export default function CreateExerciseModal({onCreate, onCancel, onSave, initial
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        <h3>✨ Nuevo ejercicio</h3>
+        <h3>Nuevo ejercicio</h3>
         {preview && <img src={preview} alt="preview" style={{width:'100%',borderRadius:'10px',marginBottom:'16px',maxHeight:'200px',objectFit:'cover'}} />}
         <label>Nombre del ejercicio</label>
         <input value={name} onChange={e=>setName(e.target.value)} placeholder="Ej: Bordalás" autoFocus />
