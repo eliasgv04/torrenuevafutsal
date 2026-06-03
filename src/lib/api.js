@@ -6,6 +6,23 @@ if(!HAS_SUPABASE){
   console.warn('Supabase is not configured. App is using localStorage fallback, data will not sync across devices.')
 }
 
+// Retry a Supabase query up to `attempts` times with increasing delay.
+// Handles transient timeouts (e.g. free-tier project waking from pause).
+async function withRetry(fn, attempts = 3, baseDelayMs = 2000) {
+  let lastErr
+  for(let i = 0; i < attempts; i++){
+    try { return await fn() }
+    catch(e){
+      lastErr = e
+      const isTimeout = e?.code === '57014' || e?.message?.includes('timeout') || e?.message?.includes('abort')
+      if(!isTimeout || i === attempts - 1) throw e
+      console.warn(`Query timeout (attempt ${i+1}/${attempts}), retrying in ${baseDelayMs*(i+1)}ms…`)
+      await new Promise(r => setTimeout(r, baseDelayMs * (i + 1)))
+    }
+  }
+  throw lastErr
+}
+
 // LocalStorage keys
 const LS_TEAMS = 'tf_teams'
 const LS_EXERCISES = 'tf_exercises'
@@ -243,8 +260,13 @@ export const api = {
   async getExercises(teamId){
     try{
       if(HAS_SUPABASE){
-        const { data, error } = await supabase.from('exercises').select('*').eq('team_id', teamId).order('created_at', {ascending:false})
-        if(error) throw error
+        const { data, error } = await withRetry(() =>
+          supabase.from('exercises')
+            .select('id,name,objective,photo_url,category,dimensions,created_at,team_id')
+            .eq('team_id', teamId)
+            .order('created_at', {ascending:false})
+            .then(r => { if(r.error) throw r.error; return r })
+        )
         return data
       }
     }catch(e){
@@ -334,12 +356,13 @@ export const api = {
     if(!exerciseIds || exerciseIds.length === 0) return []
     try{
       if(HAS_SUPABASE){
-        const { data, error } = await supabase
-          .from('exercise_records')
-          .select('*')
-          .in('exercise_id', exerciseIds)
-          .order('occurred_at', {ascending:false})
-        if(error) throw error
+        const { data } = await withRetry(() =>
+          supabase.from('exercise_records')
+            .select('exercise_id,occurred_at,count,effectiveness,dimensions,notes')
+            .in('exercise_id', exerciseIds)
+            .order('occurred_at', {ascending:false})
+            .then(r => { if(r.error) throw r.error; return r })
+        )
         return data
       }
     }catch(e){
