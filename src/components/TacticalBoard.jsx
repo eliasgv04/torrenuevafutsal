@@ -402,7 +402,7 @@ export default function TacticalBoard({ teamId, onClose }) {
 
       {/* ── Drawing toolbar ── */}
       <div style={{
-        background: 'linear-gradient(90deg, #174d1a 0%, #1f6f23 50%, #174d1a 100%)',
+        background: 'linear-gradient(90deg, #1f6f23 0%, #1f6f23 50%, #1f6f23 100%)',
         padding: '8px 16px',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         gap: 10, flexWrap: 'wrap',
@@ -487,7 +487,7 @@ export default function TacticalBoard({ teamId, onClose }) {
       </div>
 
       {/* ── 3-column main area ── */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0, background: '#174d1a' }}>
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0, background: '#1f6f23' }}>
 
         {/* Left panel – our team */}
         <SidePanel title="Equipo">
@@ -498,7 +498,7 @@ export default function TacticalBoard({ teamId, onClose }) {
             <TokenChip
               key={p.id}
               label={p.name}
-              sub={`#${p.dorsal}`}
+              sub={`${p.dorsal}`}
               color={p.position === 'Portero' ? '#15803d' : '#ca8a04'}
               placed={placedIds.has(p.id)}
               onToggle={() => placedIds.has(p.id) ? removeToken(`placed-${p.id}`) : addToken(p, false)}
@@ -510,7 +510,7 @@ export default function TacticalBoard({ teamId, onClose }) {
         <div
           ref={courtRef}
           style={{
-            flex: 1, position: 'relative', overflow: 'hidden', background: '#174d1a',
+            flex: 1, position: 'relative', overflow: 'hidden', background: '#1f6f23',
             cursor: tool === 'erase' ? 'cell' : tool === 'draw' ? 'crosshair' : 'default',
           }}
         >
