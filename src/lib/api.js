@@ -260,13 +260,12 @@ export const api = {
   async getExercises(teamId){
     try{
       if(HAS_SUPABASE){
-        const { data, error } = await withRetry(() =>
-          supabase.from('exercises')
-            .select('id,name,objective,photo_url,category,dimensions,created_at,team_id')
-            .eq('team_id', teamId)
-            .order('created_at', {ascending:false})
-            .then(r => { if(r.error) throw r.error; return r })
-        )
+        const { data, error } = await supabase
+          .from('exercises')
+          .select('id,name,objective,photo_url,category,dimensions,created_at,team_id')
+          .eq('team_id', teamId)
+          .order('created_at', {ascending:false})
+        if(error) throw error
         return data
       }
     }catch(e){
@@ -351,19 +350,27 @@ export const api = {
     return lsGet(LS_RECORDS).filter(r=>r.exercise_id===exerciseId)
   },
 
-  // Fetch all records for multiple exercises in a single query (avoids N+1)
+  // Fetch all records for multiple exercises split into small parallel chunks.
+  // Chunking avoids long .in() queries that can hit Supabase statement_timeout.
   async getRecordsByExerciseIds(exerciseIds){
     if(!exerciseIds || exerciseIds.length === 0) return []
     try{
       if(HAS_SUPABASE){
-        const { data } = await withRetry(() =>
-          supabase.from('exercise_records')
-            .select('exercise_id,occurred_at,count,effectiveness,dimensions,notes')
-            .in('exercise_id', exerciseIds)
-            .order('occurred_at', {ascending:false})
-            .then(r => { if(r.error) throw r.error; return r })
-        )
-        return data
+        const CHUNK = 25
+        const chunks = []
+        for(let i = 0; i < exerciseIds.length; i += CHUNK)
+          chunks.push(exerciseIds.slice(i, i + CHUNK))
+
+        const results = await Promise.all(chunks.map(chunk =>
+          withRetry(() =>
+            supabase.from('exercise_records')
+              .select('exercise_id,occurred_at,count,effectiveness,dimensions,notes')
+              .in('exercise_id', chunk)
+              .order('occurred_at', {ascending:false})
+              .then(r => { if(r.error) throw r.error; return r.data })
+          )
+        ))
+        return results.flat()
       }
     }catch(e){
       console.error('Supabase error, falling back to localStorage:', e)

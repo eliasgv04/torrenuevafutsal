@@ -31,6 +31,7 @@ export default function TeamPage({ team, onBack }) {
   const [showDashboard, setShowDashboard] = useState(false);
   const [showFutsal, setShowFutsal] = useState(false);
   const [showPizarra, setShowPizarra] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(false);
   const [trainings, setTrainings] = useState([]);
   const [players, setPlayers] = useState([]);
   const [showExerciseFilters, setShowExerciseFilters] = useState(false);
@@ -59,14 +60,19 @@ export default function TeamPage({ team, onBack }) {
 
   useEffect(() => {
     if (!team) return;
-    api.getExercises(team.id).then(setExercises);
+    // Show exercises immediately, then load stats in background
+    api.getExercises(team.id).then(exs => {
+      setExercises(exs);
+      if (exs.length === 0) return;
+      setStatsLoading(true);
+      loadExerciseWithRecords(exs)
+        .then(enriched => setExercises(enriched))
+        .catch(err => console.error('Error cargando estadísticas:', err))
+        .finally(() => setStatsLoading(false));
+    });
     api.getPlayers(team.id).then(setPlayers);
     loadTrainingHistory(team.id);
   }, [team]);
-  useEffect(() => {
-    if (exercises.length === 0) return;
-    loadExerciseWithRecords(exercises).then(setExercises);
-  }, [exercises.length]);
 
   async function onCreate(data) {
     if (isDuplicateExerciseName(data.name)) {
@@ -505,6 +511,9 @@ export default function TeamPage({ team, onBack }) {
             <div className="quick-stats-row">
               <span>{filteredExercises.length} ejercicios visibles</span>
               <span>{trainings.length} entrenamientos totales</span>
+              {statsLoading && (
+                <span style={{color:'#888', fontSize:12}}>Cargando estadísticas…</span>
+              )}
             </div>
           )}
 
