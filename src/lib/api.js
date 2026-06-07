@@ -260,12 +260,14 @@ export const api = {
   async getExercises(teamId){
     try{
       if(HAS_SUPABASE){
-        const { data, error } = await supabase
-          .from('exercises')
-          .select('id,name,objective,photo_url,category,dimensions,created_at,team_id')
-          .eq('team_id', teamId)
-          .order('created_at', {ascending:false})
-        if(error) throw error
+        const data = await withRetry(() =>
+          supabase
+            .from('exercises')
+            .select('id,name,objective,photo_url,category,dimensions,created_at,team_id')
+            .eq('team_id', teamId)
+            .order('created_at', {ascending:false})
+            .then(r => { if(r.error) throw r.error; return r.data })
+        )
         return data
       }
     }catch(e){
@@ -402,13 +404,15 @@ export const api = {
   async getTrainings(teamId){
     try{
       if(HAS_SUPABASE){
-        const { data, error } = await supabase
-          .from('trainings')
-          .select('*')
-          .eq('team_id', teamId)
-          .order('training_date', {ascending:false})
-          .order('created_at', {ascending:false})
-        if(error) throw error
+        const data = await withRetry(() =>
+          supabase
+            .from('trainings')
+            .select('*')
+            .eq('team_id', teamId)
+            .order('training_date', {ascending:false})
+            .order('created_at', {ascending:false})
+            .then(r => { if(r.error) throw r.error; return r.data })
+        )
         return data
       }
     }catch(e){
@@ -613,12 +617,14 @@ export const api = {
     try{
       if(HAS_SUPABASE){
         await ensureLocalPlayersSynced()
-        const { data, error } = await supabase
-          .from('players')
-          .select('*')
-          .eq('team_id', teamId)
-          .order('dorsal', {ascending:true})
-        if(error) throw error
+        const data = await withRetry(() =>
+          supabase
+            .from('players')
+            .select('*')
+            .eq('team_id', teamId)
+            .order('dorsal', {ascending:true})
+            .then(r => { if(r.error) throw r.error; return r.data })
+        )
         return data
       }
     }catch(e){
