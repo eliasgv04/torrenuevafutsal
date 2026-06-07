@@ -1,42 +1,57 @@
-# Torrenueva Futsal — Entrenamientos
+# Torrenueva Futsal — Gestión de equipo
 
-Proyecto web para registrar entrenamientos y ejercicios del Torrenueva Futsal.
+Aplicación web privada para la gestión integral de un equipo de fútbol sala. Permite organizar ejercicios, planificar entrenamientos, llevar estadísticas de jugadores y gestionar partidos.
 
-## Quick start
+**Demo:** [eliasgv04.github.io/torrenuevafutsal](https://eliasgv04.github.io/torrenuevafutsal/)
+> Acceso restringido. Credenciales disponibles bajo solicitud.
 
-1. Instala dependencias:
+---
 
-```bash
-npm install
+## Funcionalidades
+
+- **Ejercicios** — Catálogo con foto, categoría, objetivos y dimensiones. Historial de uso y estadísticas de efectividad por ejercicio.
+- **Planificador de entrenamientos** — Creación de sesiones con selección de ejercicios, jugadores convocados, objetivos y calentamiento.
+- **Historial de entrenamientos** — Búsqueda y filtrado por fecha, notas o ejercicios. Exportación a PDF y Excel.
+- **Dashboard** — Métricas de uso de ejercicios y rendimiento del equipo.
+- **Gestión de jugadores** — Plantilla con estadísticas de carrera (goles, asistencias, minutos, tarjetas…).
+- **Seguimiento de partidos** — Control en tiempo real de eventos, estadísticas individuales y del rival.
+- **Pizarra táctica** — Tablero interactivo para diseñar jugadas.
+
+## Stack técnico
+
+| Capa | Tecnología |
+|---|---|
+| Frontend | React 18 + Vite |
+| Base de datos | Supabase (PostgreSQL) |
+| Autenticación | Supabase Auth + RLS |
+| Estilos | CSS puro con variables y animaciones |
+| Exportación | pdf-lib · jsPDF · SheetJS |
+| Despliegue | GitHub Pages (CI/CD con GitHub Actions) |
+
+## Seguridad
+
+- Acceso protegido mediante Supabase Auth
+- Row Level Security (RLS) en todas las tablas: los datos son inaccesibles sin sesión autenticada, incluso con la clave pública de la API
+- Registro de nuevos usuarios deshabilitado
+- Credenciales no almacenadas en el código fuente
+
+## Arquitectura
+
+```
+src/
+├── App.jsx              # Auth gate + layout raíz
+├── pages/
+│   └── HomePage.jsx     # Selección de equipo
+├── components/
+│   ├── TeamPage.jsx     # Vista principal del equipo
+│   ├── FutsalPage.jsx   # Módulo de partidos
+│   ├── TacticalBoard.jsx
+│   └── ...
+└── lib/
+    ├── api.js           # Capa de datos (Supabase + fallback localStorage)
+    ├── supabaseClient.js
+    ├── pdfExport.js
+    └── pdfFicha.js
 ```
 
-2. Ejecuta en desarrollo:
-
-```bash
-npm run dev
-```
-
-3. Crear un proyecto en Supabase y añadir las variables de entorno en GitHub Secrets: `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
-
-4. Crear un repo en GitHub llamado `torrenueva-futsal` y subir el código. GitHub Actions desplegará en GitHub Pages.
-
-## Notas
-- Branding: colores amarillo y verde oscuro. Sustituye `public/logo.png` por el logo del club.
-- Esta es una plantilla inicial. Implementa el backend Supabase y el almacenamiento de fotos siguiendo `src/lib/supabaseClient.js`.
-
-## Supabase (opcional)
-
-Si quieres usar Supabase en vez del fallback en localStorage:
-
-1. Crea un proyecto en https://app.supabase.com
-2. En SQL editor ejecuta `supabase/schema.sql` (crea las tablas `teams`, `exercises`, `exercise_records`).
-3. Crea un bucket público `photos` en Storage.
-4. Añade las variables como Secrets en GitHub: `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON`.
-
-Si no configuras las variables, la app funcionará en modo local guardando datos en `localStorage` y fotos como data URLs.
-
-## Deploy en GitHub Pages
-
-1. Crea un repo `torrenueva-futsal` en GitHub y sube el código.
-2. GitHub Actions (ya incluido) construirá y publicará la carpeta `dist` en Pages cuando hagas push a `main`.
-
+La capa `api.js` implementa un patrón de fallback: si Supabase no está disponible o la petición falla tras reintentos automáticos, los datos se sirven desde `localStorage`.

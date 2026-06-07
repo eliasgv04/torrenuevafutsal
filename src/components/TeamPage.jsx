@@ -32,6 +32,7 @@ export default function TeamPage({ team, onBack }) {
   const [showFutsal, setShowFutsal] = useState(false);
   const [showPizarra, setShowPizarra] = useState(false);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [exercisesLoading, setExercisesLoading] = useState(true);
   const [trainings, setTrainings] = useState([]);
   const [players, setPlayers] = useState([]);
   const [showExerciseFilters, setShowExerciseFilters] = useState(false);
@@ -60,16 +61,17 @@ export default function TeamPage({ team, onBack }) {
 
   useEffect(() => {
     if (!team) return;
-    // Show exercises immediately, then load stats in background
+    setExercisesLoading(true);
     api.getExercises(team.id).then(exs => {
       setExercises(exs);
+      setExercisesLoading(false);
       if (exs.length === 0) return;
       setStatsLoading(true);
       loadExerciseWithRecords(exs)
         .then(enriched => setExercises(enriched))
         .catch(err => console.error('Error cargando estadísticas:', err))
         .finally(() => setStatsLoading(false));
-    });
+    }).catch(() => setExercisesLoading(false));
     api.getPlayers(team.id).then(setPlayers);
     loadTrainingHistory(team.id);
   }, [team]);
@@ -517,7 +519,11 @@ export default function TeamPage({ team, onBack }) {
             </div>
           )}
 
-          {exercises.length === 0 ? (
+          {exercisesLoading ? (
+            <div className="empty-state">
+              <p style={{color:'#888', fontSize:16}}>Cargando ejercicios…</p>
+            </div>
+          ) : exercises.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon"><DumbbellIcon size={72}/></div>
               <h3>Sin ejercicios aún</h3>
