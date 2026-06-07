@@ -15,7 +15,7 @@ import FutsalPage from "./FutsalPage";
 import TacticalBoard from "./TacticalBoard";
 import * as XLSX from "xlsx";
 import { parseItemNotes } from "../lib/trainingFicha";
-import { ArrowLeftIcon, TrendingUpIcon, CalendarIcon, BookOpenIcon, BoardIcon, SoccerIcon, SearchIcon, FilterIcon, DumbbellIcon, ChevronUpIcon, ChevronDownIcon } from "./Icons";
+import { ArrowLeftIcon, TrendingUpIcon, CalendarIcon, BookOpenIcon, BoardIcon, SoccerIcon, SearchIcon, FilterIcon, DumbbellIcon, ChevronUpIcon, ChevronDownIcon, LoaderIcon } from "./Icons";
 
 export default function TeamPage({ team, onBack }) {
   const [exercises, setExercises] = useState([]);
@@ -521,7 +521,8 @@ export default function TeamPage({ team, onBack }) {
 
           {exercisesLoading ? (
             <div className="empty-state">
-              <p style={{color:'#888', fontSize:16}}>Cargando ejercicios…</p>
+              <LoaderIcon size={48} color="#fff" className="spin" style={{marginBottom:16}}/>
+              <p style={{color:'#fff', fontSize:18, fontWeight:600, margin:0}}>Cargando ejercicios…</p>
             </div>
           ) : exercises.length === 0 ? (
             <div className="empty-state">

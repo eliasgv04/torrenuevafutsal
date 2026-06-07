@@ -33,3 +33,4 @@ export const ChevronUpIcon   = i(<><path d="M6 15l6 -6l6 6"/></>, {strokeWidth:'
 export const ChevronDownIcon = i(<><path d="M6 9l6 6l6 -6"/></>, {strokeWidth:'2.5'})
 export const GripIcon        = i(<><path d="M8 5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M8 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M8 19a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M14 5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M14 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M14 19a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/></>)
 export const PlusIcon        = i(<><path d="M12 5l0 14"/><path d="M5 12l14 0"/></>, {strokeWidth:'2.5'})
+export const LoaderIcon      = i(<><path d="M12 3a9 9 0 1 0 9 9"/></>, {strokeWidth:'2.5'})
