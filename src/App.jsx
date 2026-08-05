@@ -2,8 +2,13 @@ import React, { useState, useEffect } from 'react'
 import HomePage from './pages/HomePage'
 import { supabase } from './lib/supabaseClient'
 
-const VALID_USERNAME = 'torrenuevafutsal'
-const AUTH_EMAIL = 'torrenuevafutsal@torrenuevafutsal.local'
+// Each authorized login maps to its own real Supabase Auth account (email).
+// Registration stays disabled — new access is granted by adding an entry
+// here plus creating the matching user directly in Supabase.
+const VALID_USERS = {
+  'torrenuevafutsal': 'torrenuevafutsal@torrenuevafutsal.local',
+  'rodrijimbee': 'rodrijimbee@torrenuevafutsal.local',
+}
 
 export default function App() {
   const [session, setSession] = useState(undefined)
@@ -36,13 +41,14 @@ export default function App() {
       return
     }
 
-    if (username.trim() !== VALID_USERNAME) {
+    const email = VALID_USERS[username.trim()]
+    if (!email) {
       setError('Credenciales incorrectas')
       setLoading(false)
       return
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email: AUTH_EMAIL, password })
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) setError('Credenciales incorrectas')
     setLoading(false)
   }
