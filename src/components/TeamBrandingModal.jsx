@@ -1,6 +1,21 @@
 import React, {useRef, useState} from 'react'
 import { CameraIcon, TrashIcon } from './Icons'
 
+// Curated dark gradients instead of a free color picker: they stay on-brand
+// (dark, matching the app's own navy→electric look) while still spanning
+// enough hues to roughly cover real kit colors — one per team stays legible
+// and distinguishable from the others.
+const GRADIENT_PRESETS = [
+  { name: 'Azul marino',  start: '#1E3A8A', end: '#2563EB' },
+  { name: 'Rojo',         start: '#7F1D1D', end: '#DC2626' },
+  { name: 'Verde',        start: '#14532D', end: '#16A34A' },
+  { name: 'Morado',       start: '#4C1D95', end: '#7C3AED' },
+  { name: 'Grafito',      start: '#18181B', end: '#3F3F46' },
+  { name: 'Naranja',      start: '#7C2D12', end: '#EA580C' },
+  { name: 'Torrenueva',   start: '#1F6F23', end: '#FFD400' },
+  { name: 'Granate',      start: '#4C0519', end: '#9F1239' },
+]
+
 export default function TeamBrandingModal({team, onSave, onCancel}){
   const [gradientStart,setGradientStart] = useState(team.gradient_start || '#1E3A8A')
   const [gradientEnd,setGradientEnd] = useState(team.gradient_end || '#2563EB')
@@ -75,21 +90,23 @@ export default function TeamBrandingModal({team, onSave, onCancel}){
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFile} style={{display:'none'}} />
         </div>
 
-        <label style={{marginTop:'16px'}}>Color inicial del degradado</label>
-        <input type="color" value={gradientStart} onChange={e=>setGradientStart(e.target.value)} style={{height:'42px',padding:'4px',cursor:'pointer'}} />
-
-        <label>Color final del degradado</label>
-        <input type="color" value={gradientEnd} onChange={e=>setGradientEnd(e.target.value)} style={{height:'42px',padding:'4px',cursor:'pointer'}} />
-
-        <div
-          style={{
-            marginTop:'12px',
-            height:'48px',
-            borderRadius:'10px',
-            background:`linear-gradient(135deg, ${gradientStart} 0%, ${gradientEnd} 100%)`,
-            border:'1px solid rgba(0,0,0,0.08)'
-          }}
-        />
+        <label style={{marginTop:'16px'}}>Color del equipo</label>
+        <div className="gradient-preset-grid">
+          {GRADIENT_PRESETS.map((preset) => {
+            const active = preset.start === gradientStart && preset.end === gradientEnd
+            return (
+              <button
+                key={preset.name}
+                type="button"
+                className={`gradient-preset${active ? ' active' : ''}`}
+                title={preset.name}
+                aria-label={preset.name}
+                onClick={() => { setGradientStart(preset.start); setGradientEnd(preset.end) }}
+                style={{ background: `linear-gradient(135deg, ${preset.start} 0%, ${preset.end} 100%)` }}
+              />
+            )
+          })}
+        </div>
 
         <div className="modal-buttons">
           <button className="btn btn-primary" onClick={submit} disabled={saving}>{saving ? 'Guardando...' : 'Guardar cambios'}</button>

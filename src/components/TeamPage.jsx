@@ -360,7 +360,7 @@ export default function TeamPage({ team, onBack }) {
             <div className="empty-state">
               <div className="empty-icon"><DumbbellIcon size={72}/></div>
               <h3>Sin ejercicios aún</h3>
-              <p style={{color:'#444'}}>
+              <p>
                 Crea tu primer ejercicio para comenzar a registrar
                 entrenamientos
               </p>

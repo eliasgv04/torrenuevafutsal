@@ -686,7 +686,10 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
       {redCardAlert && (
         <div style={dlgOverlay} onClick={handleRedCardDismiss}>
           <div style={{...dlgContent, borderTop:'4px solid #ef4444'}} onClick={e=>e.stopPropagation()}>
-            <div style={{...dlgMsg, color:'#ef4444'}}>🟥 Tarjeta roja</div>
+            <div style={{...dlgMsg, color:'#ef4444', display:'flex', alignItems:'center', justifyContent:'center', gap:8}}>
+              <span style={{display:'inline-block',width:14,height:18,borderRadius:3,background:'#ef4444'}}/>
+              Tarjeta roja
+            </div>
             <div style={dlgMsg}><strong>{redCardAlert.playerName}</strong> ha recibido tarjeta roja.<br/>¿Retirar al jugador de la pista?</div>
             <div style={{display:'flex',gap:10}}>
               <button className="btn btn-secondary" style={{...dlgBtn, marginTop:0}} onClick={handleRedCardDismiss}>No, mantener</button>

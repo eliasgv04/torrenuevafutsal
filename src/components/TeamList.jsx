@@ -3,7 +3,7 @@ import { api, uploadPhoto } from '../lib/api'
 import InputModal from './InputModal'
 import ConfirmModal from './ConfirmModal'
 import TeamBrandingModal from './TeamBrandingModal'
-import { SoccerIcon, TrophyIcon, PaletteIcon } from './Icons'
+import { SoccerIcon, TrophyIcon, PaletteIcon, ShieldIcon } from './Icons'
 
 export default function TeamList({onOpen}){
   const [teams,setTeams] = useState([])
@@ -69,7 +69,7 @@ export default function TeamList({onOpen}){
                 {t.crest_url ? (
                   <img src={t.crest_url} alt={`Escudo de ${t.name}`} />
                 ) : (
-                  <div className="team-card-crest-placeholder"><SoccerIcon size={24}/></div>
+                  <div className="team-card-crest-placeholder"><ShieldIcon size={24}/></div>
                 )}
               </div>
               <h3>{t.name}</h3>

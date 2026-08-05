@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { api } from '../lib/api'
-import { ArrowLeftIcon } from './Icons'
+import { ArrowLeftIcon, BarChartIcon, SoccerIcon, UsersIcon, ShieldIcon, ClockIcon, StarIcon } from './Icons'
 
 // ── SVG helpers ─────────────────────────────────────────────────────────
 function donutSegment(cx, cy, outer, inner, startDeg, endDeg) {
@@ -121,11 +121,25 @@ function GoalsBarChart({ data }) {
   )
 }
 
+const RANK_COLORS = { 1: '#F59E0B', 2: '#94A3B8', 3: '#B45309' }
+
+function RankBadge({ rank }) {
+  const bg = RANK_COLORS[rank]
+  return (
+    <span style={{
+      display:'inline-flex', alignItems:'center', justifyContent:'center',
+      width:22, height:22, borderRadius:'50%', flexShrink:0,
+      background: bg || 'rgba(37,99,235,0.12)',
+      color: bg ? '#fff' : '#1E3A8A',
+      fontSize:11, fontWeight:800, fontFamily:'Poppins',
+    }}>{rank}</span>
+  )
+}
+
 function PlayerRankRow({ rank, player, value, sub, highlight }) {
-  const medals = ['🥇','🥈','🥉']
   return (
     <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background: highlight?'rgba(37,99,235,0.12)':'transparent', borderRadius:8, borderLeft: highlight?'3px solid #2563EB':'3px solid transparent' }}>
-      <span style={{fontSize:16,width:22,textAlign:'center'}}>{medals[rank-1]||rank}</span>
+      <RankBadge rank={rank}/>
       <div style={{flex:1}}>
         <div style={{fontSize:13,fontWeight:700}}>{player.name} {player.surname}</div>
         <div style={{fontSize:11,color:'#888'}}>#{player.dorsal} · {player.position}</div>
@@ -348,7 +362,7 @@ export default function FutsalStats({ teamId, onClose, embedded }) {
 
             {finished.length === 0 && (
               <div style={{textAlign:'center',padding:'40px 20px',color:'#999'}}>
-                <div style={{fontSize:40,marginBottom:8}}>📊</div>
+                <div style={{display:'flex',justifyContent:'center',marginBottom:8}}><BarChartIcon size={40}/></div>
                 <div style={{fontWeight:600}}>Sin partidos finalizados</div>
                 <div style={{fontSize:13,marginTop:4}}>Las estadísticas aparecerán cuando finalices partidos.</div>
               </div>
@@ -361,14 +375,14 @@ export default function FutsalStats({ teamId, onClose, embedded }) {
           <div style={{display:'flex',flexDirection:'column',gap:14}}>
 
             {/* Goleadores */}
-            <SectionCard title="Goleadores" icon="⚽">
+            <SectionCard title="Goleadores" icon={<SoccerIcon size={14}/>}>
               {scorers.length===0 ? <Empty/> : scorers.map((p,i)=>(
                 <PlayerRankRow key={p.id} rank={i+1} player={p} value={p.goals} sub={p.assists>0?`${p.assists} asist.`:null} highlight={i===0}/>
               ))}
             </SectionCard>
 
             {/* Asistentes */}
-            <SectionCard title="Asistentes" icon="🤝">
+            <SectionCard title="Asistentes" icon={<UsersIcon size={14}/>}>
               {(() => {
                 const top = [...playerAggregates].sort((a,b)=>b.assists-a.assists||b.goals-a.goals).filter(p=>p.assists>0).slice(0,5)
                 return top.length===0 ? <Empty/> : top.map((p,i)=>(
@@ -379,7 +393,7 @@ export default function FutsalStats({ teamId, onClose, embedded }) {
 
             {/* Porteros */}
             {keepers.length > 0 && (
-              <SectionCard title="Porteros — Paradas" icon="🧤">
+              <SectionCard title="Porteros — Paradas" icon={<ShieldIcon size={14}/>}>
                 {keepers.map((p,i)=>(
                   <PlayerRankRow key={p.id} rank={i+1} player={p} value={p.saves} sub={`${p.matches} part.`} highlight={i===0}/>
                 ))}
@@ -387,7 +401,7 @@ export default function FutsalStats({ teamId, onClose, embedded }) {
             )}
 
             {/* Minutos */}
-            <SectionCard title="Más minutos jugados" icon="⏱">
+            <SectionCard title="Más minutos jugados" icon={<ClockIcon size={14}/>}>
               {minLeaders.length===0 ? <Empty/> : minLeaders.map((p,i)=>(
                 <PlayerRankRow key={p.id} rank={i+1} player={p} value={Math.floor(p.minutes_played/60)+'m'} sub={`${p.matches} partidos`} highlight={i===0}/>
               ))}
@@ -452,7 +466,7 @@ export default function FutsalStats({ teamId, onClose, embedded }) {
                     <div style={{marginTop:8,display:'flex',gap:8,flexWrap:'wrap'}}>
                       {m.playerStats.filter(ps=>ps.goals>0).map(ps=>{
                         const pl=players.find(p=>p.id===ps.player_id)
-                        return pl ? <span key={ps.player_id} style={{fontSize:12,background:'#f0f7f0',padding:'3px 8px',borderRadius:20,color:'#1E3A8A',fontWeight:600}}>⚽ {pl.name} {ps.goals>1?`×${ps.goals}`:''}</span> : null
+                        return pl ? <span key={ps.player_id} style={{fontSize:12,background:'#f0f7f0',padding:'3px 8px',borderRadius:20,color:'#1E3A8A',fontWeight:600,display:'inline-flex',alignItems:'center',gap:4}}><SoccerIcon size={12}/> {pl.name} {ps.goals>1?`×${ps.goals}`:''}</span> : null
                       })}
                     </div>
                   )}
@@ -460,8 +474,8 @@ export default function FutsalStats({ teamId, onClose, embedded }) {
                   {mvpPlayer && m.mvpScore > 0 && (
                     <div style={{marginTop:6,display:'flex',alignItems:'center',gap:6}}>
                       <span style={{fontSize:11,color:'#aaa'}}>MVP del partido:</span>
-                      <span style={{fontSize:12,fontWeight:700,color:'#1E3A8A',background:'rgba(37,99,235,0.15)',padding:'2px 8px',borderRadius:20}}>
-                        ⭐ {mvpPlayer.name} ({m.mvp.goals}G {m.mvp.assists}A)
+                      <span style={{fontSize:12,fontWeight:700,color:'#1E3A8A',background:'rgba(37,99,235,0.15)',padding:'2px 8px',borderRadius:20,display:'inline-flex',alignItems:'center',gap:4}}>
+                        <StarIcon size={12}/> {mvpPlayer.name} ({m.mvp.goals}G {m.mvp.assists}A)
                       </span>
                     </div>
                   )}
@@ -564,7 +578,7 @@ function SectionCard({ title, icon, children }) {
   return (
     <div style={{background:'#fff',borderRadius:12,padding:'14px 16px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
       {title && <h4 style={{margin:'0 0 12px',fontSize:13,fontWeight:700,textTransform:'uppercase',letterSpacing:.5,color:'#444',display:'flex',alignItems:'center',gap:6}}>
-        {icon && <span>{icon}</span>}{title}
+        {icon}{title}
       </h4>}
       {children}
     </div>
