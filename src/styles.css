@@ -102,6 +102,9 @@ main{padding:32px 24px;flex:1}
 }
 
 .card{
+  display:flex;
+  flex-direction:column;
+  height:100%;
   background:var(--card);
   padding:20px;
   border-radius:16px;
@@ -109,6 +112,69 @@ main{padding:32px 24px;flex:1}
   transition:all 0.3s cubic-bezier(0.25,0.46,0.45,0.94);
   animation:scaleIn 0.5s ease-out;
   border:1px solid rgba(255,212,0,0.1);
+}
+
+.exercise-card-body{
+  width:100%;
+}
+
+.exercise-card-category{
+  display:inline-block;
+  max-width:100%;
+  color:#fff;
+  padding:4px 8px;
+  border-radius:6px;
+  font-size:11px;
+  white-space:normal;
+  overflow-wrap:break-word;
+}
+
+.exercise-card{
+  padding:16px;
+}
+
+.exercise-card img{
+  height:120px;
+  margin-bottom:8px;
+}
+
+.exercise-card h3{
+  font-size:16px;
+  margin:6px 0 2px;
+}
+
+.exercise-card-stats{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  margin-top:10px;
+  font-size:12.5px;
+  border-top:1px solid #eee;
+  padding-top:10px;
+}
+
+.exercise-card-stat{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  min-width:0;
+}
+
+.exercise-card-stat span{
+  overflow-wrap:anywhere;
+}
+
+.exercise-card-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:auto;
+  padding-top:10px;
+}
+
+.exercise-card-actions .btn{
+  padding:9px 14px;
+  font-size:13px;
 }
 
 .card:hover{
