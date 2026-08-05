@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { api } from '../lib/api'
-import { XIcon, PauseIcon, PlayIcon } from './Icons'
+import { ArrowLeftIcon, XIcon, PauseIcon, PlayIcon } from './Icons'
 
-export default function MatchTracker({ match, teamId, players, onClose }) {
+export default function MatchTracker({ match, teamId, teamName, players, onClose }) {
+  const ourTeamName = teamName || 'Nuestro equipo'
   const [onFieldPlayers,          setOnFieldPlayers]          = useState([])
   const [playerStats,             setPlayerStats]             = useState({})
   const [rivalStats,              setRivalStats]              = useState({ goals:0, shots_on_goal:0, fouls:0, yellow_cards:0, red_cards:0 })
@@ -403,7 +404,7 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
     }
     setConfirmDialog({
       isOpen: true,
-      message: `¿Finalizar partido?\n\n${isHome ? 'Torrenueva' : match.rival_team_name} ${homeScore} - ${awayScore} ${isHome ? match.rival_team_name : 'Torrenueva'}\n\nSe guardarán todas las estadísticas.`,
+      message: `¿Finalizar partido?\n\n${isHome ? ourTeamName : match.rival_team_name} ${homeScore} - ${awayScore} ${isHome ? match.rival_team_name : ourTeamName}\n\nSe guardarán todas las estadísticas.`,
       onConfirm: async () => {
         closeConfirm()
         try {
@@ -474,35 +475,31 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
   }
 
   // ── Position colors ──────────────────────────────────────────────────
-  const positionColors = { 'Portero':'#FF6B6B', 'Cierre':'#4ECDC4', 'Ala Diestro':'#45B7D1', 'Ala Zurdo':'#96CEB4', 'Pivot':'#FFEAA7' }
+  const positionColors = { 'Portero':'#EF4444', 'Cierre':'#F97316', 'Ala Diestro':'#3B82F6', 'Ala Zurdo':'#22C55E', 'Pivot':'#A855F7' }
 
   const saveStatusLabel = saveStatus === 'saving' ? 'Guardando...' : saveStatus === 'saved' ? 'Guardado' : saveStatus === 'error' ? 'Error al guardar' : null
   const saveStatusColor = saveStatus === 'saving' ? '#f59e0b' : saveStatus === 'saved' ? '#22c55e' : '#ef4444'
 
   // ── Render ────────────────────────────────────────────────────────────
   return (
-    <div className="match-tracker-modal" onClick={e => e.stopPropagation()}>
-      <div className="modal-header">
-        <h2 style={{fontSize:16}}>{match.rival_team_name} · {match.place}</h2>
-        <div style={{display:'flex', alignItems:'center', gap:10}}>
+    <div>
+      <div className="header-top">
+        <div>
+          <button className="btn btn-back" onClick={onClose}>
+            <ArrowLeftIcon size={15}/> Atrás
+          </button>
+          <h2 style={{display:'inline-block',marginLeft:16,marginTop:0,fontSize:22}}>{match.rival_team_name} · {match.place}</h2>
+        </div>
+        <div style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap'}}>
           {saveStatusLabel && (
-            <span style={{fontSize:11, color:saveStatusColor, fontWeight:600}}>{saveStatusLabel}</span>
+            <span style={{fontSize:12, color:saveStatusColor, fontWeight:700}}>{saveStatusLabel}</span>
           )}
-          {isProcessing && <span style={{fontSize:11, color:'#f59e0b', fontWeight:600}}>Procesando...</span>}
-          <button className="btn btn-secondary btn-secondary-small" style={{marginTop:0}} onClick={autoSaveAll} disabled={isProcessing}>
+          {isProcessing && <span style={{fontSize:12, color:'#f59e0b', fontWeight:700}}>Procesando...</span>}
+          <button className="btn btn-secondary" onClick={autoSaveAll} disabled={isProcessing}>
             Guardar ahora
           </button>
-          <button className="modal-close" onClick={onClose}><XIcon size={14}/></button>
         </div>
       </div>
-
-      {/* Float chrono toggle */}
-      <button className={`chrono-float-toggle ${isChronoRunning ? 'running' : ''}`}
-        onClick={() => setIsChronoRunning(p => !p)} disabled={isProcessing}
-        aria-label={isChronoRunning ? 'Pausar' : 'Reanudar'}>
-        <span className="chrono-float-icon">{isChronoRunning ? <PauseIcon size={18}/> : <PlayIcon size={18}/>}</span>
-        <span>{isChronoRunning ? 'Pausar' : 'Reanudar'}</span>
-      </button>
 
       <div className="tracker-content">
 
@@ -519,7 +516,7 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
               onClick={() => setIsChronoRunning(p => !p)} disabled={isProcessing}>
               {isChronoRunning ? <PauseIcon size={14}/> : <PlayIcon size={14}/>} {isChronoRunning ? 'Pausar' : 'Reanudar'}
             </button>
-            <button className="btn-secondary btn-secondary-small" onClick={handleResetChrono} disabled={isProcessing}>
+            <button className="btn btn-secondary btn-secondary-small" style={{marginTop:0}} onClick={handleResetChrono} disabled={isProcessing}>
               Reiniciar
             </button>
           </div>
@@ -528,12 +525,12 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
         {/* Scoreboard */}
         <div className="live-scoreboard">
           <div className="score-team">
-            <span className="score-label">{isHome ? 'Torrenueva (Local)' : match.rival_team_name}</span>
+            <span className="score-label">{isHome ? `${ourTeamName} (Local)` : match.rival_team_name}</span>
             <strong>{homeScore}</strong>
           </div>
           <div className="score-separator">-</div>
           <div className="score-team">
-            <span className="score-label">{isHome ? match.rival_team_name : 'Torrenueva (Visitante)'}</span>
+            <span className="score-label">{isHome ? match.rival_team_name : `${ourTeamName} (Visitante)`}</span>
             <strong>{awayScore}</strong>
           </div>
         </div>
@@ -633,7 +630,7 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
                   ))}
                 </div>
             }
-            <button className="btn-secondary" onClick={() => setSelectedPlayerForChange(null)} disabled={isProcessing}>Cancelar</button>
+            <button className="btn btn-secondary" style={{marginTop:0}} onClick={() => setSelectedPlayerForChange(null)} disabled={isProcessing}>Cancelar</button>
           </div>
         )}
 
@@ -665,8 +662,8 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
 
         {/* Footer actions */}
         <div className="match-footer-actions">
-          <button className="btn-secondary" onClick={onClose}>Salir sin finalizar</button>
-          <button className="btn-danger" onClick={handleFinalizeMatch} disabled={isProcessing}>
+          <button className="btn btn-secondary" style={{marginTop:0}} onClick={onClose}>Salir sin finalizar</button>
+          <button className="btn btn-danger" style={{marginTop:0}} onClick={handleFinalizeMatch} disabled={isProcessing}>
             Finalizar partido
           </button>
         </div>
@@ -678,8 +675,8 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
           <div style={dlgContent} onClick={e=>e.stopPropagation()}>
             <div style={dlgMsg}>{confirmDialog.message.split('\n').map((l,i)=><div key={i}>{l || <br/>}</div>)}</div>
             <div style={{display:'flex',gap:10}}>
-              <button className="btn-secondary" style={dlgBtn} onClick={()=>confirmDialog.onCancel?.()}>Cancelar</button>
-              <button className="btn-danger"    style={dlgBtn} onClick={()=>confirmDialog.onConfirm?.()}>Confirmar</button>
+              <button className="btn btn-secondary" style={{...dlgBtn, marginTop:0}} onClick={()=>confirmDialog.onCancel?.()}>Cancelar</button>
+              <button className="btn btn-danger" style={{...dlgBtn, marginTop:0}} onClick={()=>confirmDialog.onConfirm?.()}>Confirmar</button>
             </div>
           </div>
         </div>
@@ -692,8 +689,8 @@ export default function MatchTracker({ match, teamId, players, onClose }) {
             <div style={{...dlgMsg, color:'#ef4444'}}>🟥 Tarjeta roja</div>
             <div style={dlgMsg}><strong>{redCardAlert.playerName}</strong> ha recibido tarjeta roja.<br/>¿Retirar al jugador de la pista?</div>
             <div style={{display:'flex',gap:10}}>
-              <button className="btn-secondary" style={dlgBtn} onClick={handleRedCardDismiss}>No, mantener</button>
-              <button className="btn-danger"    style={dlgBtn} onClick={handleRedCardRemove}>Sí, retirar</button>
+              <button className="btn btn-secondary" style={{...dlgBtn, marginTop:0}} onClick={handleRedCardDismiss}>No, mantener</button>
+              <button className="btn btn-danger" style={{...dlgBtn, marginTop:0}} onClick={handleRedCardRemove}>Sí, retirar</button>
             </div>
           </div>
         </div>
@@ -711,6 +708,6 @@ const deleteButtonStyle = {
   cursor:'pointer', transition:'all 0.18s ease'
 }
 const dlgOverlay = { position:'fixed', inset:0, background:'rgba(11,11,11,0.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10000, backdropFilter:'blur(3px)' }
-const dlgContent = { background:'linear-gradient(180deg,#fff 0%,#f8fbf7 100%)', border:'1px solid rgba(31,111,35,0.12)', borderRadius:'18px', padding:'26px 24px 22px', width:'min(420px,calc(100vw - 32px))', boxShadow:'0 24px 70px rgba(0,0,0,0.28)' }
+const dlgContent = { background:'linear-gradient(180deg,#fff 0%,#f8fbf7 100%)', border:'1px solid rgba(30,58,138,0.12)', borderRadius:'18px', padding:'26px 24px 22px', width:'min(420px,calc(100vw - 32px))', boxShadow:'0 24px 70px rgba(0,0,0,0.28)' }
 const dlgMsg     = { color:'var(--text-dark)', fontSize:'15px', fontWeight:600, lineHeight:1.6, marginBottom:'20px', textAlign:'center', whiteSpace:'pre-line' }
 const dlgBtn     = { flex:1, minHeight:'42px', padding:'10px 16px', border:'none', borderRadius:'10px', fontWeight:700, cursor:'pointer' }

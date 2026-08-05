@@ -9,15 +9,18 @@ import RegisterModal from "./RegisterModal";
 import ConfirmModal from "./ConfirmModal";
 import ExerciseDetailModal from "./ExerciseDetailModal";
 import TrainingPlannerModal from "./TrainingPlannerModal";
-import TrainingHistoryModal from "./TrainingHistoryModal";
-import TeamDashboardModal from "./TeamDashboardModal";
-import FutsalPage from "./FutsalPage";
+import TrainingsPage from "./TrainingsPage";
+import TeamHub from "./TeamHub";
+import TeamStatsView from "./TeamStatsView";
+import PlayerManagement from "./PlayerManagement";
+import MatchManagement from "./MatchManagement";
+import MatchTracker from "./MatchTracker";
 import TacticalBoard from "./TacticalBoard";
-import * as XLSX from "xlsx";
-import { parseItemNotes } from "../lib/trainingFicha";
-import { ArrowLeftIcon, TrendingUpIcon, CalendarIcon, BookOpenIcon, BoardIcon, SoccerIcon, SearchIcon, FilterIcon, DumbbellIcon, ChevronUpIcon, ChevronDownIcon, LoaderIcon } from "./Icons";
+import { ArrowLeftIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon, DumbbellIcon, LoaderIcon } from "./Icons";
 
 export default function TeamPage({ team, onBack }) {
+  const [view, setView] = useState("hub"); // hub | exercises | trainings | board | roster | matches | stats
+  const [selectedMatch, setSelectedMatch] = useState(null);
   const [exercises, setExercises] = useState([]);
   const [creating, setCreating] = useState(false);
   const [editingExercise, setEditingExercise] = useState(null);
@@ -27,23 +30,15 @@ export default function TeamPage({ team, onBack }) {
   const [creatingTraining, setCreatingTraining] = useState(false);
   const [editingTraining, setEditingTraining] = useState(null);
   const [confirmDeleteTraining, setConfirmDeleteTraining] = useState(null);
-  const [showTrainingHistory, setShowTrainingHistory] = useState(false);
-  const [showDashboard, setShowDashboard] = useState(false);
-  const [showFutsal, setShowFutsal] = useState(false);
-  const [showPizarra, setShowPizarra] = useState(false);
   const [statsLoading, setStatsLoading] = useState(false);
   const [exercisesLoading, setExercisesLoading] = useState(true);
   const [trainings, setTrainings] = useState([]);
   const [players, setPlayers] = useState([]);
   const [showExerciseFilters, setShowExerciseFilters] = useState(false);
-  const [showTrainingFilters, setShowTrainingFilters] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [exerciseDateFrom, setExerciseDateFrom] = useState("");
   const [exerciseDateTo, setExerciseDateTo] = useState("");
-  const [trainingSearch, setTrainingSearch] = useState("");
-  const [trainingDateFrom, setTrainingDateFrom] = useState("");
-  const [trainingDateTo, setTrainingDateTo] = useState("");
 
   const normalizeExerciseName = (value) =>
     String(value || "")
@@ -176,24 +171,6 @@ export default function TeamPage({ team, onBack }) {
     setConfirmDeleteTraining(null);
   }
 
-  async function exportTrainingsToPdf() {
-    const dataForExport =
-      filteredTrainings.length > 0 ? filteredTrainings : trainings;
-    if (dataForExport.length === 0) {
-      alert("No hay entrenamientos para exportar");
-      return;
-    }
-    try {
-      // Sequential to avoid the legacy exporter trampling on the shared DOM wrapper.
-      for (const training of dataForExport) {
-        await exportSingleTraining(training);
-      }
-    } catch (e) {
-      console.error("Error exporting trainings:", e);
-      alert("Error al exportar entrenamientos: " + (e.message || e));
-    }
-  }
-
   async function exportSingleTraining(training) {
     try {
       if (!training) {
@@ -223,52 +200,6 @@ export default function TeamPage({ team, onBack }) {
       console.error("Error en exportSingleTraining:", error);
       alert("Error al exportar: " + (error.message || error));
     }
-  }
-
-  function exportTrainingsToExcel() {
-    const dataForExport =
-      filteredTrainings.length > 0 ? filteredTrainings : trainings;
-    if (dataForExport.length === 0) {
-      alert("No hay entrenamientos para exportar");
-      return;
-    }
-
-    const rows = [];
-    dataForExport.forEach((training) => {
-      const date = new Date(training.training_date).toLocaleDateString("es-ES");
-      (training.items || []).forEach((item) => {
-        const parsed = parseItemNotes(item.notes);
-        rows.push({
-          Fecha: date,
-          Ejercicio: item.exercise_name || "-",
-          Categoria: item.category || "-",
-          Veces: item.planned_count ?? "-",
-          Dimensiones: item.dimensions || "-",
-          Objetivo: item.objective || "-",
-          NotasEjercicio: parsed.text || "-",
-          NotasExtra: parsed.extra_text || "-",
-          NotasEntrenamiento: training.notes || "-",
-        });
-      });
-      if (!training.items?.length) {
-        rows.push({
-          Fecha: date,
-          Ejercicio: "-",
-          Categoria: "-",
-          Veces: "-",
-          Dimensiones: "-",
-          Objetivo: "-",
-          NotasEjercicio: "-",
-          NotasEntrenamiento: training.notes || "-",
-        });
-      }
-    });
-
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Entrenamientos");
-    const safeTeam = team.name.replace(/\s+/g, "_");
-    XLSX.writeFile(workbook, `entrenamientos_${safeTeam}.xlsx`);
   }
 
   async function onDeleteExercise(exercise) {
@@ -316,32 +247,6 @@ export default function TeamPage({ team, onBack }) {
     });
   }, [exercises, searchText, categoryFilter, exerciseDateFrom, exerciseDateTo]);
 
-  const filteredTrainings = useMemo(() => {
-    const search = trainingSearch.trim().toLowerCase();
-    return trainings.filter((training) => {
-      const trainingDate = training.training_date
-        ? new Date(training.training_date)
-        : null;
-      const fromOk =
-        !trainingDateFrom ||
-        (trainingDate && trainingDate >= new Date(trainingDateFrom));
-      const toOk =
-        !trainingDateTo ||
-        (trainingDate && trainingDate <= new Date(trainingDateTo));
-      const dateOk = (!trainingDateFrom && !trainingDateTo) || (fromOk && toOk);
-      if (!dateOk) return false;
-      if (!search) return true;
-
-      const joined = `${training.notes || ""} ${(training.items || [])
-        .map((item) => {
-          const parsed = parseItemNotes(item.notes);
-          return `${item.exercise_name || ""} ${item.category || ""} ${item.objective || ""} ${parsed.text} ${parsed.extra_text}`;
-        })
-        .join(" ")}`.toLowerCase();
-      return joined.includes(search);
-    });
-  }, [trainings, trainingSearch, trainingDateFrom, trainingDateTo]);
-
   function clearExerciseFilters() {
     setSearchText("");
     setCategoryFilter("all");
@@ -349,57 +254,41 @@ export default function TeamPage({ team, onBack }) {
     setExerciseDateTo("");
   }
 
-  function clearTrainingFilters() {
-    setTrainingSearch("");
-    setTrainingDateFrom("");
-    setTrainingDateTo("");
-  }
-
   return (
     <div>
-      {showFutsal ? (
-        <FutsalPage teamId={team.id} onBack={() => setShowFutsal(false)} />
-      ) : showPizarra ? (
-        <TacticalBoard teamId={team.id} onClose={() => setShowPizarra(false)} />
-      ) : (
+      {view === "hub" && (
+        <TeamHub
+          team={team}
+          counts={{
+            exercises: exercises.length,
+            trainings: trainings.length,
+            players: players.length,
+          }}
+          onBack={onBack}
+          onOpenExercises={() => setView("exercises")}
+          onOpenTrainings={() => setView("trainings")}
+          onOpenMatches={() => setView("matches")}
+          onOpenRoster={() => setView("roster")}
+          onOpenBoard={() => setView("board")}
+          onOpenStats={() => setView("stats")}
+        />
+      )}
+
+      {view === "exercises" && (
         <>
           <div className="header-top">
             <div>
-              <button className="btn btn-back" onClick={onBack}>
+              <button className="btn btn-back" onClick={() => setView("hub")}>
                 <ArrowLeftIcon size={15}/> Atrás
               </button>
-              <h2
-                style={{
-                  display: "inline-block",
-                  marginLeft: 16,
-                  marginTop: 0,
-                }}
-              >
-                {team.name}
-              </h2>
+              <h2 style={{display:"inline-block",marginLeft:16,marginTop:0}}>Ejercicios</h2>
             </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button className="btn" onClick={() => setShowDashboard(true)}>
-                <TrendingUpIcon size={15}/> Dashboard
-              </button>
-              <button className="btn" onClick={() => setCreatingTraining(true)}>
-                <CalendarIcon size={15}/> Nuevo entrenamiento
-              </button>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
               <button
                 className="btn"
-                onClick={() => setShowTrainingHistory(true)}
+                onClick={() => setShowExerciseFilters((s) => !s)}
               >
-                <BookOpenIcon size={15}/> Historial
-              </button>
-              <button className="btn" onClick={() => setShowPizarra(true)}>
-                <BoardIcon size={15}/> Pizarra
-              </button>
-
-              <button
-                className="btn btn-futsal"
-                onClick={() => setShowFutsal(true)}
-              >
-                <SoccerIcon size={15}/> Futsal
+                Más filtros {showExerciseFilters ? <ChevronUpIcon size={13}/> : <ChevronDownIcon size={13}/>}
               </button>
               <button
                 className="btn btn-primary"
@@ -410,38 +299,18 @@ export default function TeamPage({ team, onBack }) {
             </div>
           </div>
 
-          <div className="compact-toolbar">
-            <button
-              className="btn"
-              style={{ marginTop: 0 }}
-              onClick={() => setShowExerciseFilters((s) => !s)}
-            >
-              <SearchIcon size={14}/> Filtros ejercicios {showExerciseFilters ? <ChevronUpIcon size={13}/> : <ChevronDownIcon size={13}/>}
-            </button>
-            <button
-              className="btn"
-              style={{ marginTop: 0 }}
-              onClick={() => setShowTrainingFilters((s) => !s)}
-            >
-              <FilterIcon size={14}/> Filtros historial {showTrainingFilters ? <ChevronUpIcon size={13}/> : <ChevronDownIcon size={13}/>}
-            </button>
-            <button
-              className="btn"
-              style={{ marginTop: 0 }}
-              onClick={() => setShowTrainingHistory(true)}
-            >
-              Ver historial ({filteredTrainings.length})
-            </button>
+          <div className="exercise-search-row">
+            <SearchIcon size={16}/>
+            <input
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Buscar por nombre, objetivo o categoría"
+            />
           </div>
 
           {showExerciseFilters && (
             <div className="filters-panel compact">
-              <div className="filters-grid">
-                <input
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  placeholder="Buscar por nombre, objetivo o categoría"
-                />
+              <div className="filters-grid exercise-filters-grid">
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
@@ -473,46 +342,9 @@ export default function TeamPage({ team, onBack }) {
             </div>
           )}
 
-          {showTrainingFilters && (
-            <div className="filters-panel compact" style={{ marginTop: 12 }}>
-              <div className="filters-grid training-filters-grid">
-                <input
-                  value={trainingSearch}
-                  onChange={(e) => setTrainingSearch(e.target.value)}
-                  placeholder="Buscar por notas o ejercicios del entrenamiento"
-                />
-                <input
-                  type="date"
-                  value={trainingDateFrom}
-                  onChange={(e) => setTrainingDateFrom(e.target.value)}
-                />
-                <input
-                  type="date"
-                  value={trainingDateTo}
-                  onChange={(e) => setTrainingDateTo(e.target.value)}
-                />
-                <button
-                  className="btn btn-cancel"
-                  style={{ marginTop: 0 }}
-                  onClick={clearTrainingFilters}
-                >
-                  Limpiar
-                </button>
-                <button
-                  className="btn"
-                  style={{ marginTop: 0 }}
-                  onClick={() => setShowTrainingHistory(true)}
-                >
-                  Abrir filtrado ({filteredTrainings.length})
-                </button>
-              </div>
-            </div>
-          )}
-
           {exercises.length > 0 && (
             <div className="quick-stats-row">
               <span>{filteredExercises.length} ejercicios visibles</span>
-              <span>{trainings.length} entrenamientos totales</span>
               {statsLoading && (
                 <span style={{color:'#888', fontSize:12}}>Cargando estadísticas…</span>
               )}
@@ -561,93 +393,119 @@ export default function TeamPage({ team, onBack }) {
               <p>Prueba a limpiar filtros o ajustar la búsqueda.</p>
             </div>
           )}
-
-          {creating && (
-            <CreateExerciseModal
-              onCreate={onCreate}
-              onCancel={() => setCreating(false)}
-            />
-          )}
-          {editingExercise && (
-            <CreateExerciseModal
-              initial={editingExercise}
-              onSave={onSaveEdit}
-              onCancel={() => setEditingExercise(null)}
-            />
-          )}
-          {creatingTraining && (
-            <TrainingPlannerModal
-              exercises={exercises}
-              players={players}
-              onSave={onCreateTraining}
-              onCancel={() => setCreatingTraining(false)}
-            />
-          )}
-          {showTrainingHistory && (
-            <TrainingHistoryModal
-              trainings={filteredTrainings}
-              onClose={() => setShowTrainingHistory(false)}
-              onExportTraining={exportSingleTraining}
-              onEditTraining={(training) => {
-                setShowTrainingHistory(false);
-                setEditingTraining(training);
-              }}
-              onDeleteTraining={(training) =>
-                setConfirmDeleteTraining(training)
-              }
-            />
-          )}
-          {editingTraining && (
-            <TrainingPlannerModal
-              exercises={exercises}
-              players={players}
-              initial={editingTraining}
-              onSave={onEditTraining}
-              onCancel={() => setEditingTraining(null)}
-            />
-          )}
-          {confirmDeleteTraining && (
-            <ConfirmModal
-              title="Borrar entrenamiento"
-              message={`Borrar el entrenamiento del ${new Date(confirmDeleteTraining.training_date).toLocaleDateString("es-ES")}? Se eliminarán también todos sus ejercicios.`}
-              onConfirm={onConfirmDeleteTraining}
-              onCancel={() => setConfirmDeleteTraining(null)}
-            />
-          )}
-          {showDashboard && (
-            <TeamDashboardModal
-              teamName={team.name}
-              exercises={exercises}
-              trainings={trainings}
-              onClose={() => setShowDashboard(false)}
-            />
-          )}
-          {registerFor && (
-            <RegisterModal
-              exercise={registerFor}
-              onSave={onSaveRecord}
-              onCancel={() => setRegisterFor(null)}
-            />
-          )}
-          {confirmFor && (
-            <ConfirmModal
-              title={`Eliminar ${confirmFor.name}`}
-              message={`Eliminar el ejercicio "${confirmFor.name}"? Se borrarán también sus registros.`}
-              onConfirm={doDeleteExercise}
-              onCancel={() => setConfirmFor(null)}
-            />
-          )}
-          {detailFor && (
-            <ExerciseDetailModal
-              exercise={detailFor}
-              onClose={() => setDetailFor(null)}
-              onEdit={() => {
-                setDetailFor(null);
-                setEditingExercise(detailFor);
-              }}
-            />
-          )}
         </>
+      )}
+
+      {view === "board" && (
+        <TacticalBoard teamId={team.id} onClose={() => setView("hub")} />
+      )}
+
+      {view === "roster" && (
+        <PlayerManagement teamId={team.id} onClose={() => setView("hub")} />
+      )}
+
+      {view === "matches" && (
+        selectedMatch ? (
+          <MatchTracker
+            match={selectedMatch}
+            teamId={team.id}
+            teamName={team.name}
+            players={players}
+            onClose={() => setSelectedMatch(null)}
+          />
+        ) : (
+          <MatchManagement
+            teamId={team.id}
+            onSelectMatch={(match) => setSelectedMatch(match)}
+            onClose={() => setView("hub")}
+          />
+        )
+      )}
+
+      {view === "stats" && (
+        <TeamStatsView
+          teamId={team.id}
+          teamName={team.name}
+          exercises={exercises}
+          trainings={trainings}
+          onClose={() => setView("hub")}
+        />
+      )}
+
+      {view === "trainings" && (
+        <TrainingsPage
+          trainings={trainings}
+          players={players}
+          onBack={() => setView("hub")}
+          onNewTraining={() => setCreatingTraining(true)}
+          onExportTraining={exportSingleTraining}
+          onEditTraining={(training) => setEditingTraining(training)}
+          onDeleteTraining={(training) => setConfirmDeleteTraining(training)}
+        />
+      )}
+
+      {creating && (
+        <CreateExerciseModal
+          onCreate={onCreate}
+          onCancel={() => setCreating(false)}
+        />
+      )}
+      {editingExercise && (
+        <CreateExerciseModal
+          initial={editingExercise}
+          onSave={onSaveEdit}
+          onCancel={() => setEditingExercise(null)}
+        />
+      )}
+      {creatingTraining && (
+        <TrainingPlannerModal
+          exercises={exercises}
+          players={players}
+          onSave={onCreateTraining}
+          onCancel={() => setCreatingTraining(false)}
+        />
+      )}
+      {editingTraining && (
+        <TrainingPlannerModal
+          exercises={exercises}
+          players={players}
+          initial={editingTraining}
+          onSave={onEditTraining}
+          onCancel={() => setEditingTraining(null)}
+        />
+      )}
+      {confirmDeleteTraining && (
+        <ConfirmModal
+          title="Borrar entrenamiento"
+          message={`Borrar el entrenamiento del ${new Date(confirmDeleteTraining.training_date).toLocaleDateString("es-ES")}? Se eliminarán también todos sus ejercicios.`}
+          onConfirm={onConfirmDeleteTraining}
+          onCancel={() => setConfirmDeleteTraining(null)}
+        />
+      )}
+      {registerFor && (
+        <RegisterModal
+          exercise={registerFor}
+          onSave={onSaveRecord}
+          onCancel={() => setRegisterFor(null)}
+        />
+      )}
+      {confirmFor && (
+        <ConfirmModal
+          title={`Eliminar ${confirmFor.name}`}
+          message={`Eliminar el ejercicio "${confirmFor.name}"? Se borrarán también sus registros.`}
+          onConfirm={doDeleteExercise}
+          onCancel={() => setConfirmFor(null)}
+        />
+      )}
+      {detailFor && (
+        <ExerciseDetailModal
+          exercise={detailFor}
+          onClose={() => setDetailFor(null)}
+          onEdit={() => {
+            setDetailFor(null);
+            setEditingExercise(detailFor);
+          }}
+        />
       )}
     </div>
   );

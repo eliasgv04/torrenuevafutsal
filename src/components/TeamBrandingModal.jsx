@@ -2,8 +2,8 @@ import React, {useRef, useState} from 'react'
 import { CameraIcon, TrashIcon } from './Icons'
 
 export default function TeamBrandingModal({team, onSave, onCancel}){
-  const [gradientStart,setGradientStart] = useState(team.gradient_start || '#ffd400')
-  const [gradientEnd,setGradientEnd] = useState(team.gradient_end || '#1f6f23')
+  const [gradientStart,setGradientStart] = useState(team.gradient_start || '#1E3A8A')
+  const [gradientEnd,setGradientEnd] = useState(team.gradient_end || '#2563EB')
   const [file,setFile] = useState(null)
   const [preview,setPreview] = useState(team.crest_url || null)
   const [removed,setRemoved] = useState(false)

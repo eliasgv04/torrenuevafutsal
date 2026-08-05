@@ -79,7 +79,7 @@ export default function TeamList({onOpen}){
                   height:'8px',
                   borderRadius:'999px',
                   margin:'8px 0 4px',
-                  background:`linear-gradient(90deg, ${t.gradient_start || '#ffd400'} 0%, ${t.gradient_end || '#1f6f23'} 100%)`
+                  background:`linear-gradient(90deg, ${t.gradient_start || '#1E3A8A'} 0%, ${t.gradient_end || '#2563EB'} 100%)`
                 }}
               />
               <div style={{display:'flex',gap:'10px',flexWrap:'wrap'}}>

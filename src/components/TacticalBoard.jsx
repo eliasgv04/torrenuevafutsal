@@ -39,6 +39,12 @@ const TEAM_POS_MAP = {
 
 const PALETTE   = ['#ffffff', '#ffd400', '#ef4444', '#f97316', '#22c55e', '#3b82f6', '#a855f7', '#1a1a1a']
 const PEN_SIZES = [2, 4, 8, 14]
+
+// Here we only care about telling the two teams (and our own keeper) apart
+// at a glance — not position, unlike Plantilla.
+const TEAM_COLOR   = '#ca8a04'
+const KEEPER_COLOR = '#15803d'
+const RIVAL_COLOR  = '#dc2626'
 const TOKEN_R   = 22
 
 const PencilIcon = ({ size = 14, color = 'currentColor' }) => (
@@ -280,8 +286,8 @@ export default function TacticalBoard({ teamId, onClose }) {
   }
 
   function tokenColor(tok) {
-    if (tok.isPortero) return '#15803d'
-    return tok.isRival ? '#dc2626' : '#ca8a04'
+    if (tok.isPortero) return KEEPER_COLOR
+    return tok.isRival ? RIVAL_COLOR : TEAM_COLOR
   }
 
   function shortLabel(tok) {
@@ -384,18 +390,18 @@ export default function TacticalBoard({ teamId, onClose }) {
 
       {/* ── Header ── */}
       <div style={{
-        background: 'linear-gradient(135deg, #ffd400 0%, #1f6f23 100%)',
+        background: 'linear-gradient(135deg, #2563EB 0%, #172554 100%)',
         padding: '10px 16px', display: 'flex', alignItems: 'center',
         justifyContent: 'space-between', boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
         flexShrink: 0,
       }}>
         <button onClick={onClose} style={{
-          background: 'rgba(255,255,255,0.95)', color: '#1f6f23', border: 'none',
+          background: 'rgba(255,255,255,0.95)', color: '#172554', border: 'none',
           padding: '7px 16px', borderRadius: 8, cursor: 'pointer',
           fontSize: 13, fontWeight: 700, fontFamily: 'Poppins, sans-serif',
           boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
           display: 'flex', alignItems: 'center', gap: 6,
-        }}><ArrowLeftIcon size={14}/> Volver</button>
+        }}><ArrowLeftIcon size={14}/> Atrás</button>
         <span style={{ color: '#fff', fontFamily: 'Poppins, sans-serif', fontSize: 18, fontWeight: 700, textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
            Pizarra Táctica
         </span>
@@ -405,12 +411,12 @@ export default function TacticalBoard({ teamId, onClose }) {
 
       {/* ── Drawing toolbar ── */}
       <div style={{
-        background: 'linear-gradient(90deg, #1f6f23 0%, #1f6f23 50%, #1f6f23 100%)',
+        background: 'linear-gradient(90deg, #172554 0%, #172554 50%, #172554 100%)',
         padding: '8px 16px',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         gap: 10, flexWrap: 'wrap',
         boxShadow: '0 3px 12px rgba(0,0,0,0.3)', flexShrink: 0,
-        borderBottom: '2px solid rgba(255,212,0,0.4)',
+        borderBottom: '2px solid rgba(37,99,235,0.4)',
       }}>
 
         {/* Mode buttons */}
@@ -424,15 +430,15 @@ export default function TacticalBoard({ teamId, onClose }) {
             <button key={t.id} onClick={() => setTool(t.id)} style={{
               padding: '6px 13px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
               border:     'none',
-              background: active ? '#ffd400' : 'rgba(255,255,255,0.12)',
-              color:      active ? '#1a1a1a' : 'rgba(255,255,255,0.85)',
+              background: active ? '#2563EB' : 'rgba(255,255,255,0.12)',
+              color:      active ? '#fff' : 'rgba(255,255,255,0.85)',
               fontWeight: active ? 700 : 500,
               fontFamily: 'Poppins, sans-serif',
               transition: 'all 0.15s',
-              boxShadow:  active ? '0 2px 8px rgba(255,212,0,0.4)' : 'none',
+              boxShadow:  active ? '0 2px 8px rgba(37,99,235,0.4)' : 'none',
               display: 'flex', alignItems: 'center', gap: 5,
             }}>
-              <t.Icon size={13} color={active ? '#1a1a1a' : 'rgba(255,255,255,0.85)'}/>
+              <t.Icon size={13} color={active ? '#fff' : 'rgba(255,255,255,0.85)'}/>
               {t.label}
             </button>
           )
@@ -445,9 +451,9 @@ export default function TacticalBoard({ teamId, onClose }) {
           {PALETTE.map(c => (
             <button key={c} onClick={() => { setColor(c); if (tool !== 'erase') setTool('draw') }} style={{
               width: 22, height: 22, borderRadius: '50%', background: c, padding: 0, cursor: 'pointer',
-              border: color === c ? '3px solid #ffd400' : c === '#ffffff' ? '1.5px solid rgba(255,255,255,0.5)' : '1.5px solid rgba(0,0,0,0.2)',
+              border: color === c ? '3px solid #2563EB' : c === '#ffffff' ? '1.5px solid rgba(255,255,255,0.5)' : '1.5px solid rgba(0,0,0,0.2)',
               transform: color === c ? 'scale(1.3)' : 'none', transition: 'transform 0.1s',
-              boxShadow: color === c ? '0 0 6px rgba(255,212,0,0.7)' : 'none',
+              boxShadow: color === c ? '0 0 6px rgba(37,99,235,0.7)' : 'none',
             }}/>
           ))}
           <input type="color" value={color} title="Color personalizado"
@@ -463,10 +469,10 @@ export default function TacticalBoard({ teamId, onClose }) {
           {PEN_SIZES.map(s => (
             <button key={s} onClick={() => { setPenSize(s); if (tool !== 'erase') setTool('draw') }} style={{
               width: s + 14, height: s + 14, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0,
-              background:  penSize === s ? '#ffd400' : 'rgba(255,255,255,0.35)',
+              background:  penSize === s ? '#2563EB' : 'rgba(255,255,255,0.35)',
               transform:   penSize === s ? 'scale(1.2)' : 'none', transition: 'all 0.1s',
               minWidth: 16, minHeight: 16,
-              boxShadow: penSize === s ? '0 0 6px rgba(255,212,0,0.6)' : 'none',
+              boxShadow: penSize === s ? '0 0 6px rgba(37,99,235,0.6)' : 'none',
             }}/>
           ))}
         </div>
@@ -483,14 +489,14 @@ export default function TacticalBoard({ teamId, onClose }) {
 
         <button onClick={exportBoard} style={{
           padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
-          border: 'none', background: '#ffd400', color: '#1a1a1a',
+          border: 'none', background: '#2563EB', color: '#fff',
           fontFamily: 'Poppins, sans-serif', fontWeight: 700, transition: 'all 0.15s',
-          boxShadow: '0 2px 8px rgba(255,212,0,0.4)',
+          boxShadow: '0 2px 8px rgba(37,99,235,0.4)',
         }}>Exportar PNG</button>
       </div>
 
       {/* ── 3-column main area ── */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0, background: '#1f6f23' }}>
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0, background: '#172554' }}>
 
         {/* Left panel – our team */}
         <SidePanel title="Equipo">
@@ -502,7 +508,7 @@ export default function TacticalBoard({ teamId, onClose }) {
               key={p.id}
               label={p.name}
               sub={`${p.dorsal}`}
-              color={p.position === 'Portero' ? '#15803d' : '#ca8a04'}
+              color={p.position === 'Portero' ? KEEPER_COLOR : TEAM_COLOR}
               placed={placedIds.has(p.id)}
               onToggle={() => placedIds.has(p.id) ? removeToken(`placed-${p.id}`) : addToken(p, false)}
             />
@@ -513,7 +519,7 @@ export default function TacticalBoard({ teamId, onClose }) {
         <div
           ref={courtRef}
           style={{
-            flex: 1, position: 'relative', overflow: 'hidden', background: '#1f6f23',
+            flex: 1, position: 'relative', overflow: 'hidden', background: '#172554',
             cursor: tool === 'erase' ? 'cell' : tool === 'draw' ? 'crosshair' : 'default',
           }}
         >
@@ -587,7 +593,7 @@ export default function TacticalBoard({ teamId, onClose }) {
               key={p.id}
               label={p.name}
               sub={p.short}
-              color="#dc2626"
+              color={RIVAL_COLOR}
               placed={placedIds.has(p.id)}
               onToggle={() => placedIds.has(p.id) ? removeToken(`placed-${p.id}`) : addToken(p, true)}
             />
@@ -604,19 +610,19 @@ export default function TacticalBoard({ teamId, onClose }) {
 function SidePanel({ title, children }) {
   return (
     <div style={{
-      width: 162, background: 'rgba(0,0,0,0.55)', borderRight: '1px solid rgba(255,255,255,0.08)',
+      width: 220, background: 'rgba(0,0,0,0.55)', borderRight: '1px solid rgba(255,255,255,0.08)',
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
       flexShrink: 0,
     }}>
       <div style={{
-        padding: '8px 6px 6px', textAlign: 'center', color: '#ffd400',
+        padding: '8px 6px 6px', textAlign: 'center', color: '#2563EB',
         fontSize: 11, fontWeight: 700, fontFamily: 'Poppins, sans-serif',
         borderBottom: '1px solid rgba(255,255,255,0.15)', letterSpacing: '0.5px',
         flexShrink: 0, textTransform: 'uppercase',
       }}>{title}</div>
       <div style={{
         flex: 1, overflowY: 'auto', padding: '6px',
-        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5,
+        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 5,
         alignContent: 'start',
       }}>
         {children}
@@ -630,8 +636,8 @@ function TokenChip({ label, sub, color, placed, onToggle }) {
     <button onClick={onToggle} title={placed ? 'Quitar del campo' : 'Añadir al campo'} style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
       padding: '7px 4px', borderRadius: 8, cursor: 'pointer', width: '100%',
-      border:      placed ? '2px solid #ffd400' : '1.5px solid rgba(255,255,255,0.2)',
-      background:  placed ? 'rgba(255,212,0,0.15)' : 'rgba(255,255,255,0.06)',
+      border:      placed ? '2px solid #2563EB' : '1.5px solid rgba(255,255,255,0.2)',
+      background:  placed ? 'rgba(37,99,235,0.15)' : 'rgba(255,255,255,0.06)',
       color: '#fff', transition: 'all 0.15s',
     }}>
       <div style={{
@@ -639,12 +645,12 @@ function TokenChip({ label, sub, color, placed, onToggle }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: sub ? 13 : 9, fontWeight: 700, color: '#fff',
         boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
-        border: placed ? '2.5px solid #ffd400' : '2px solid rgba(255,255,255,0.2)',
+        border: placed ? '2.5px solid #2563EB' : '2px solid rgba(255,255,255,0.2)',
         textAlign: 'center', padding: '0 2px', lineHeight: 1.2, flexShrink: 0,
       }}>
         {sub || label.split(' ')[0]}
       </div>
-      <span style={{ fontSize: 9.5, lineHeight: 1.2, textAlign: 'center', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: placed ? '#ffd400' : '#ccc' }}>
+      <span style={{ fontSize: 9.5, lineHeight: 1.2, textAlign: 'center', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: placed ? '#2563EB' : '#ccc' }}>
         {label}
       </span>
     </button>

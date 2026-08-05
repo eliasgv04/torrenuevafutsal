@@ -15,7 +15,7 @@ function getMonthLabel(key){
   return d.toLocaleDateString('es-ES', {month: 'short', year: '2-digit'})
 }
 
-export default function TeamDashboardModal({teamName, exercises, trainings, onClose}){
+export default function TeamDashboardModal({teamName, exercises, trainings, onClose, embedded}){
   const data = useMemo(()=>{
     const totalExercises = exercises.length
     const totalTrainings = trainings.length
@@ -71,9 +71,9 @@ export default function TeamDashboardModal({teamName, exercises, trainings, onCl
     }
   }, [exercises, trainings])
 
-  return (
-    <div className="modal-overlay">
-      <div className="modal-content dashboard-modal">
+  const body = (
+    <>
+      {!embedded && (
         <div className="dashboard-head">
           <div>
             <h3>Dashboard {teamName ? `- ${teamName}` : ''}</h3>
@@ -81,6 +81,7 @@ export default function TeamDashboardModal({teamName, exercises, trainings, onCl
           </div>
           <button className="btn btn-cancel" style={{marginTop:0, padding:'8px 12px', fontSize:'12px'}} onClick={onClose}><XIcon size={13}/> Cerrar</button>
         </div>
+      )}
 
         <div className="dashboard-kpis">
           <div className="kpi-card"><span>Ejercicios</span><strong>{data.totalExercises}</strong></div>
@@ -148,6 +149,15 @@ export default function TeamDashboardModal({teamName, exercises, trainings, onCl
             )}
           </section>
         </div>
+    </>
+  )
+
+  if(embedded) return body
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content dashboard-modal">
+        {body}
       </div>
     </div>
   )

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../lib/api'
+import { ArrowLeftIcon, TrashIcon } from './Icons'
 
 export default function MatchManagement({ teamId, onSelectMatch, onClose }) {
   const [matches, setMatches] = useState([])
@@ -70,85 +71,94 @@ export default function MatchManagement({ teamId, onSelectMatch, onClose }) {
   }
 
   return (
-    <div className="match-management-modal" onClick={(e) => e.stopPropagation()}>
-      <div className="modal-header">
-        <h2>Gestión de Partidos</h2>
-        <button className="modal-close" onClick={onClose}>✕</button>
-      </div>
-
-      <div className="modal-content">
+    <div>
+      <div className="header-top">
+        <div>
+          <button className="btn btn-back" onClick={onClose}>
+            <ArrowLeftIcon size={15}/> Atrás
+          </button>
+          <h2 style={{display:'inline-block',marginLeft:16,marginTop:0}}>Partidos</h2>
+        </div>
         {!showForm && (
-          <button className="btn-primary" onClick={() => setShowForm(true)}>
-            + Crear Partido
+          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+            + Crear partido
           </button>
         )}
+      </div>
 
-        {showForm && (
-          <form onSubmit={handleCreateMatch} className="match-form">
-            <input
-              type="text"
-              placeholder="Rival"
-              value={formData.rival_team_name}
-              onChange={(e) => setFormData({ ...formData, rival_team_name: e.target.value })}
-              required
-            />
-            <input
-              type="datetime-local"
-              value={formData.match_date}
-              onChange={(e) => setFormData({ ...formData, match_date: e.target.value })}
-              required
-            />
-            <input
-              type="text"
-              placeholder="Lugar"
-              value={formData.place}
-              onChange={(e) => setFormData({ ...formData, place: e.target.value })}
-              required
-            />
-            <input
-              type="number"
-              placeholder="Jornada (opcional)"
-              value={formData.jornada}
-              onChange={(e) => setFormData({ ...formData, jornada: e.target.value })}
-            />
-            <select
-              value={formData.is_home}
-              onChange={(e) => setFormData({ ...formData, is_home: e.target.value })}
-            >
-              <option value="home">Somos local</option>
-              <option value="away">Somos visitante</option>
-            </select>
-            <button type="submit" className="btn-primary">Guardar</button>
-            <button type="button" className="btn-secondary" onClick={() => setShowForm(false)}>Cancelar</button>
-          </form>
-        )}
+      {showForm && (
+        <form onSubmit={handleCreateMatch} className="match-form">
+          <input
+            type="text"
+            placeholder="Rival"
+            value={formData.rival_team_name}
+            onChange={(e) => setFormData({ ...formData, rival_team_name: e.target.value })}
+            required
+          />
+          <input
+            type="datetime-local"
+            value={formData.match_date}
+            onChange={(e) => setFormData({ ...formData, match_date: e.target.value })}
+            required
+          />
+          <input
+            type="text"
+            placeholder="Lugar"
+            value={formData.place}
+            onChange={(e) => setFormData({ ...formData, place: e.target.value })}
+            required
+          />
+          <input
+            type="number"
+            placeholder="Jornada (opcional)"
+            value={formData.jornada}
+            onChange={(e) => setFormData({ ...formData, jornada: e.target.value })}
+          />
+          <select
+            value={formData.is_home}
+            onChange={(e) => setFormData({ ...formData, is_home: e.target.value })}
+          >
+            <option value="home">Somos local</option>
+            <option value="away">Somos visitante</option>
+          </select>
+          <button type="submit" className="btn btn-primary" style={{marginTop:0}}>Guardar</button>
+          <button type="button" className="btn btn-cancel" style={{marginTop:0}} onClick={() => setShowForm(false)}>Cancelar</button>
+        </form>
+      )}
 
-        <div className="matches-list">
-          {matches.length === 0 ? (
-            <p className="empty-state">No hay partidos creados.</p>
-          ) : (
-            matches.map((match) => (
-              <div key={match.id} className="match-card">
-                <div className="match-info">
-                  <h3>vs {match.rival_team_name}</h3>
-                  <p className="match-date">{formatDate(match.match_date)}</p>
-                  <p className="match-place">{match.place}</p>
-                  <p className="match-place">{match.is_home === false ? 'Visitante' : 'Local'}</p>
-                  {match.jornada && <p className="match-jornada">Jornada {match.jornada}</p>}
-                  {renderResult(match) && <p className="match-jornada">{renderResult(match)}</p>}
-                </div>
-                <div className="match-actions">
-                  <button className="btn-secondary" onClick={() => onSelectMatch(match)}>
-                    Trackear
-                  </button>
-                  <button className="btn-danger" onClick={() => handleDeleteMatch(match.id)}>
-                    Eliminar
-                  </button>
-                </div>
+      <div className="matches-list">
+        {matches.length === 0 ? (
+          <div className="empty-state">
+            <h3>Sin partidos todavía</h3>
+            <p>Crea el primer partido para empezar a llevar el calendario.</p>
+            {!showForm && (
+              <button className="btn btn-primary" onClick={() => setShowForm(true)} style={{marginTop:16}}>
+                + Crear partido
+              </button>
+            )}
+          </div>
+        ) : (
+          matches.map((match) => (
+            <div key={match.id} className="match-card">
+              <div className="match-info">
+                <h3>vs {match.rival_team_name}</h3>
+                <p className="match-date">
+                  {formatDate(match.match_date)} · {match.place} · {match.is_home === false ? 'Visitante' : 'Local'}
+                  {match.jornada ? ` · Jornada ${match.jornada}` : ''}
+                </p>
+                {renderResult(match) && <p className="match-jornada">{renderResult(match)}</p>}
               </div>
-            ))
-          )}
-        </div>
+              <div className="match-actions">
+                <button className="btn btn-secondary" style={{marginTop:0}} onClick={() => onSelectMatch(match)}>
+                  Trackear
+                </button>
+                <button className="btn btn-danger" style={{marginTop:0}} onClick={() => handleDeleteMatch(match.id)}>
+                  <TrashIcon size={13}/> Eliminar
+                </button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   )

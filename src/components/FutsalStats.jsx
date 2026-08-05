@@ -17,8 +17,8 @@ function donutSegment(cx, cy, outer, inner, startDeg, endDeg) {
 // ── Sub-components ───────────────────────────────────────────────────────
 function StatCard({ label, value, sub, color }) {
   return (
-    <div style={{ background:'#fff', borderRadius:14, padding:'14px 18px', boxShadow:'0 4px 16px rgba(31,111,35,0.10)', borderTop:`4px solid ${color||'#1f6f23'}`, textAlign:'center', flex:'1 1 110px', minWidth:100 }}>
-      <div style={{ fontSize:28, fontWeight:800, fontFamily:'Poppins', color: color||'#1f6f23', lineHeight:1 }}>{value}</div>
+    <div style={{ background:'#fff', borderRadius:14, padding:'14px 18px', boxShadow:'0 4px 16px rgba(30,58,138,0.10)', borderTop:`4px solid ${color||'#1E3A8A'}`, textAlign:'center', flex:'1 1 110px', minWidth:100 }}>
+      <div style={{ fontSize:28, fontWeight:800, fontFamily:'Poppins', color: color||'#1E3A8A', lineHeight:1 }}>{value}</div>
       <div style={{ fontSize:11, color:'#666', marginTop:4, fontWeight:600, textTransform:'uppercase', letterSpacing:.5 }}>{label}</div>
       {sub && <div style={{ fontSize:11, color:'#999', marginTop:2 }}>{sub}</div>}
     </div>
@@ -50,7 +50,7 @@ function DonutChart({ wins, draws, losses }) {
           if (!s.v) return null
           return <path key={i} d={donutSegment(60, 60, 52, 32, startDeg, endDeg)} fill={s.color}/>
         })}
-        <text x="60" y="57" textAnchor="middle" fontSize="18" fontWeight="800" fontFamily="Poppins" fill="#1f6f23">{total}</text>
+        <text x="60" y="57" textAnchor="middle" fontSize="18" fontWeight="800" fontFamily="Poppins" fill="#1E3A8A">{total}</text>
         <text x="60" y="69" textAnchor="middle" fontSize="8"  fill="#888">partidos</text>
       </svg>
       <div style={{display:'flex',flexDirection:'column',gap:6}}>
@@ -124,14 +124,14 @@ function GoalsBarChart({ data }) {
 function PlayerRankRow({ rank, player, value, sub, highlight }) {
   const medals = ['🥇','🥈','🥉']
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background: highlight?'rgba(255,212,0,0.12)':'transparent', borderRadius:8, borderLeft: highlight?'3px solid #ffd400':'3px solid transparent' }}>
+    <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background: highlight?'rgba(37,99,235,0.12)':'transparent', borderRadius:8, borderLeft: highlight?'3px solid #2563EB':'3px solid transparent' }}>
       <span style={{fontSize:16,width:22,textAlign:'center'}}>{medals[rank-1]||rank}</span>
       <div style={{flex:1}}>
         <div style={{fontSize:13,fontWeight:700}}>{player.name} {player.surname}</div>
         <div style={{fontSize:11,color:'#888'}}>#{player.dorsal} · {player.position}</div>
       </div>
       <div style={{textAlign:'right'}}>
-        <div style={{fontSize:18,fontWeight:800,fontFamily:'Poppins',color:'#1f6f23'}}>{value}</div>
+        <div style={{fontSize:18,fontWeight:800,fontFamily:'Poppins',color:'#1E3A8A'}}>{value}</div>
         {sub && <div style={{fontSize:10,color:'#aaa'}}>{sub}</div>}
       </div>
     </div>
@@ -139,7 +139,7 @@ function PlayerRankRow({ rank, player, value, sub, highlight }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────
-export default function FutsalStats({ teamId, onClose }) {
+export default function FutsalStats({ teamId, onClose, embedded }) {
   const [matches,      setMatches]      = useState([])
   const [allStats,     setAllStats]     = useState({}) // matchId → { playerStats[], rivalStats }
   const [players,      setPlayers]      = useState([])
@@ -246,7 +246,7 @@ export default function FutsalStats({ teamId, onClose }) {
   if (loading) {
     return (
       <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:300,flexDirection:'column',gap:12}}>
-        <div style={{width:36,height:36,border:'4px solid #e5e7eb',borderTopColor:'#1f6f23',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>
+        <div style={{width:36,height:36,border:'4px solid #e5e7eb',borderTopColor:'#1E3A8A',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>
         <span style={{color:'#666',fontSize:14}}>Cargando estadísticas...</span>
       </div>
     )
@@ -255,16 +255,18 @@ export default function FutsalStats({ teamId, onClose }) {
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100%'}}>
       {/* Header */}
-      <div style={{background:'linear-gradient(135deg,#ffd400 0%,#1f6f23 100%)',padding:'12px 16px',display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
-        <button onClick={onClose} style={{background:'rgba(255,255,255,0.9)',border:'none',padding:'6px 12px',borderRadius:8,cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontWeight:700,color:'#1f6f23',fontSize:13,fontFamily:'Poppins'}}>
-          <ArrowLeftIcon size={14}/> Volver
-        </button>
-        <h2 style={{margin:0,color:'#fff',fontFamily:'Poppins',fontSize:18,fontWeight:700}}>Estadísticas Futsal</h2>
-        <div style={{marginLeft:'auto',display:'flex',gap:6}}>
-          <span style={{background:'rgba(255,255,255,0.2)',color:'#fff',padding:'4px 10px',borderRadius:20,fontSize:12,fontWeight:600}}>{matches.length} partidos</span>
-          <span style={{background:'rgba(255,255,255,0.2)',color:'#fff',padding:'4px 10px',borderRadius:20,fontSize:12,fontWeight:600}}>{players.length} jugadores</span>
+      {!embedded && (
+        <div style={{background:'linear-gradient(135deg,#2563EB 0%,#1E3A8A 100%)',padding:'12px 16px',display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
+          <button onClick={onClose} style={{background:'rgba(255,255,255,0.9)',border:'none',padding:'6px 12px',borderRadius:8,cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontWeight:700,color:'#1E3A8A',fontSize:13,fontFamily:'Poppins'}}>
+            <ArrowLeftIcon size={14}/> Volver
+          </button>
+          <h2 style={{margin:0,color:'#fff',fontFamily:'Poppins',fontSize:18,fontWeight:700}}>Estadísticas Futsal</h2>
+          <div style={{marginLeft:'auto',display:'flex',gap:6}}>
+            <span style={{background:'rgba(255,255,255,0.2)',color:'#fff',padding:'4px 10px',borderRadius:20,fontSize:12,fontWeight:600}}>{matches.length} partidos</span>
+            <span style={{background:'rgba(255,255,255,0.2)',color:'#fff',padding:'4px 10px',borderRadius:20,fontSize:12,fontWeight:600}}>{players.length} jugadores</span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Tabs */}
       <div style={{display:'flex',background:'#fff',borderBottom:'2px solid #f0f0f0',flexShrink:0,overflowX:'auto'}}>
@@ -272,8 +274,8 @@ export default function FutsalStats({ teamId, onClose }) {
           <button key={t.id} onClick={()=>setActiveTab(t.id)} style={{
             flex:'1 1 auto',padding:'10px 4px',border:'none',background:'transparent',cursor:'pointer',
             fontSize:13,fontWeight:activeTab===t.id?700:500,fontFamily:'Poppins',
-            color:activeTab===t.id?'#1f6f23':'#888',
-            borderBottom:activeTab===t.id?'3px solid #1f6f23':'3px solid transparent',
+            color:activeTab===t.id?'#1E3A8A':'#888',
+            borderBottom:activeTab===t.id?'3px solid #1E3A8A':'3px solid transparent',
             whiteSpace:'nowrap',minWidth:80,
           }}>{t.label}</button>
         ))}
@@ -292,7 +294,7 @@ export default function FutsalStats({ teamId, onClose }) {
               <StatCard label="Victorias"  value={teamStats.wins}    color="#22c55e" sub={`${teamStats.pts} pts`}/>
               <StatCard label="Empates"    value={teamStats.draws}   color="#f59e0b"/>
               <StatCard label="Derrotas"   value={teamStats.losses}  color="#ef4444"/>
-              <StatCard label="Goles"      value={teamStats.gf}      color="#1f6f23" sub="a favor"/>
+              <StatCard label="Goles"      value={teamStats.gf}      color="#1E3A8A" sub="a favor"/>
               <StatCard label="Encajados"  value={teamStats.gc}      color="#dc2626" sub="en contra"/>
               <StatCard label="Diferencia" value={(teamStats.gd>0?'+':'')+teamStats.gd} color={teamStats.gd>=0?'#22c55e':'#ef4444'}/>
               <StatCard label="P. cero"    value={teamStats.cs}      color="#0ea5e9" sub="portería a 0"/>
@@ -326,10 +328,10 @@ export default function FutsalStats({ teamId, onClose }) {
 
             {/* Top scorer quick view */}
             {scorers[0] && (
-              <div style={{background:'linear-gradient(135deg,#1f6f23,#2d8a32)',borderRadius:12,padding:'14px 16px',color:'#fff'}}>
+              <div style={{background:'linear-gradient(135deg,#1E3A8A,#2563EB)',borderRadius:12,padding:'14px 16px',color:'#fff'}}>
                 <div style={{fontSize:11,opacity:.8,textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Máximo goleador</div>
                 <div style={{display:'flex',alignItems:'center',gap:12}}>
-                  <div style={{width:44,height:44,borderRadius:'50%',background:'#ffd400',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:800,color:'#1a1a1a',fontFamily:'Poppins'}}>
+                  <div style={{width:44,height:44,borderRadius:'50%',background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:800,color:'#1E3A8A',fontFamily:'Poppins'}}>
                     {scorers[0].dorsal}
                   </div>
                   <div>
@@ -337,7 +339,7 @@ export default function FutsalStats({ teamId, onClose }) {
                     <div style={{fontSize:12,opacity:.8}}>{scorers[0].position}</div>
                   </div>
                   <div style={{marginLeft:'auto',textAlign:'right'}}>
-                    <div style={{fontSize:28,fontWeight:800,fontFamily:'Poppins',color:'#ffd400',lineHeight:1}}>{scorers[0].goals}</div>
+                    <div style={{fontSize:28,fontWeight:800,fontFamily:'Poppins',color:'#2563EB',lineHeight:1}}>{scorers[0].goals}</div>
                     <div style={{fontSize:11,opacity:.7}}>goles</div>
                   </div>
                 </div>
@@ -408,7 +410,7 @@ export default function FutsalStats({ teamId, onClose }) {
                         <td style={{padding:'5px 8px',textAlign:'center',fontWeight:700}}>{p.dorsal}</td>
                         <td style={{padding:'5px 8px',whiteSpace:'nowrap'}}>{p.name} {p.surname}</td>
                         <td style={{padding:'5px 8px',textAlign:'center'}}>{p.matches}</td>
-                        <td style={{padding:'5px 8px',textAlign:'center',fontWeight:p.goals>0?700:400,color:p.goals>0?'#1f6f23':'#999'}}>{p.goals}</td>
+                        <td style={{padding:'5px 8px',textAlign:'center',fontWeight:p.goals>0?700:400,color:p.goals>0?'#1E3A8A':'#999'}}>{p.goals}</td>
                         <td style={{padding:'5px 8px',textAlign:'center'}}>{p.assists}</td>
                         <td style={{padding:'5px 8px',textAlign:'center'}}>{p.shots_on_goal}</td>
                         <td style={{padding:'5px 8px',textAlign:'center'}}>{p.shots_out}</td>
@@ -440,7 +442,7 @@ export default function FutsalStats({ teamId, onClose }) {
                       <div style={{fontSize:11,color:'#888'}}>{new Date(m.match_date).toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric'})} · {m.place} · J{m.jornada||'?'}</div>
                     </div>
                     <div style={{fontSize:28,fontWeight:800,fontFamily:'Poppins',letterSpacing:2}}>
-                      <span style={{color:'#1f6f23'}}>{m.ourGoals}</span>
+                      <span style={{color:'#1E3A8A'}}>{m.ourGoals}</span>
                       <span style={{color:'#ccc',margin:'0 4px'}}>-</span>
                       <span style={{color:'#ef4444'}}>{m.rivGoals}</span>
                     </div>
@@ -450,7 +452,7 @@ export default function FutsalStats({ teamId, onClose }) {
                     <div style={{marginTop:8,display:'flex',gap:8,flexWrap:'wrap'}}>
                       {m.playerStats.filter(ps=>ps.goals>0).map(ps=>{
                         const pl=players.find(p=>p.id===ps.player_id)
-                        return pl ? <span key={ps.player_id} style={{fontSize:12,background:'#f0f7f0',padding:'3px 8px',borderRadius:20,color:'#1f6f23',fontWeight:600}}>⚽ {pl.name} {ps.goals>1?`×${ps.goals}`:''}</span> : null
+                        return pl ? <span key={ps.player_id} style={{fontSize:12,background:'#f0f7f0',padding:'3px 8px',borderRadius:20,color:'#1E3A8A',fontWeight:600}}>⚽ {pl.name} {ps.goals>1?`×${ps.goals}`:''}</span> : null
                       })}
                     </div>
                   )}
@@ -458,7 +460,7 @@ export default function FutsalStats({ teamId, onClose }) {
                   {mvpPlayer && m.mvpScore > 0 && (
                     <div style={{marginTop:6,display:'flex',alignItems:'center',gap:6}}>
                       <span style={{fontSize:11,color:'#aaa'}}>MVP del partido:</span>
-                      <span style={{fontSize:12,fontWeight:700,color:'#1f6f23',background:'rgba(255,212,0,0.15)',padding:'2px 8px',borderRadius:20}}>
+                      <span style={{fontSize:12,fontWeight:700,color:'#1E3A8A',background:'rgba(37,99,235,0.15)',padding:'2px 8px',borderRadius:20}}>
                         ⭐ {mvpPlayer.name} ({m.mvp.goals}G {m.mvp.assists}A)
                       </span>
                     </div>
@@ -495,7 +497,7 @@ export default function FutsalStats({ teamId, onClose }) {
                     <div key={p.id} style={{marginBottom:8}}>
                       <div style={{display:'flex',justifyContent:'space-between',marginBottom:3,fontSize:12}}>
                         <span>{p.name} {p.surname}</span>
-                        <span style={{fontWeight:700,color:'#1f6f23'}}>{p.goals} ({Math.round(p.goals/total*100)}%)</span>
+                        <span style={{fontWeight:700,color:'#1E3A8A'}}>{p.goals} ({Math.round(p.goals/total*100)}%)</span>
                       </div>
                       <div style={{height:8,background:'#f0f0f0',borderRadius:4,overflow:'hidden'}}>
                         <div style={{height:'100%',width:`${p.goals/total*100}%`,background:`hsl(${140-i*20},65%,45%)`,borderRadius:4,transition:'width 0.5s ease'}}/>
