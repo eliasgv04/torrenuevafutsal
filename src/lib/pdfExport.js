@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf'
 
-const CLUB_NAME = 'Torrenueva Futsal'
+const DEFAULT_ACCENT_START = '#1E3A8A'
+const DEFAULT_ACCENT_END = '#2563EB'
 
 function escapeHtml(value){
   return String(value ?? '')
@@ -96,7 +97,7 @@ async function buildExerciseCardsHtml(items){
   return cards.join('')
 }
 
-function buildHtmlDocument({ training, players, teamName, logoDataUrl, exercisesHtml, playersHtml, objectivesHtml }){
+function buildHtmlDocument({ training, players, teamName, logoDataUrl, accentStart, accentEnd, exercisesHtml, playersHtml, objectivesHtml }){
   const trainingDate = new Date(training.training_date).toLocaleDateString('es-ES', {
     weekday: 'long',
     day: 'numeric',
@@ -121,7 +122,7 @@ function buildHtmlDocument({ training, players, teamName, logoDataUrl, exercises
           background: #ffffff;
         }
         .header {
-          background: #0f9d58;
+          background: linear-gradient(135deg, ${accentStart} 0%, ${accentEnd} 100%);
           color: #ffffff;
           border-radius: 4mm;
           padding: 4mm 4.5mm;
@@ -170,7 +171,7 @@ function buildHtmlDocument({ training, players, teamName, logoDataUrl, exercises
           background: #ffffff;
         }
         .panel-title {
-          color: #0f9d58;
+          color: ${accentStart};
           font-size: 8pt;
           font-weight: 700;
           letter-spacing: 0.02em;
@@ -210,7 +211,7 @@ function buildHtmlDocument({ training, players, teamName, logoDataUrl, exercises
           gap: 1.5mm 3mm;
         }
         .objective-row {
-          border-left: 1.5mm solid #f4b400;
+          border-left: 1.5mm solid ${accentEnd};
           padding: 1.2mm 0 1.2mm 2mm;
           background: #fbfcfd;
           border-radius: 1.5mm;
@@ -218,7 +219,7 @@ function buildHtmlDocument({ training, players, teamName, logoDataUrl, exercises
         .objective-label {
           font-size: 6.2pt;
           font-weight: 700;
-          color: #0f9d58;
+          color: ${accentStart};
           margin-bottom: 0.6mm;
         }
         .objective-value {
@@ -241,7 +242,7 @@ function buildHtmlDocument({ training, players, teamName, logoDataUrl, exercises
         .mini-label {
           font-size: 7pt;
           font-weight: 700;
-          color: #0f9d58;
+          color: ${accentStart};
           margin-bottom: 1mm;
         }
         .mini-value {
@@ -253,7 +254,7 @@ function buildHtmlDocument({ training, players, teamName, logoDataUrl, exercises
         .section-title {
           font-size: 8.5pt;
           font-weight: 700;
-          color: #0f9d58;
+          color: ${accentStart};
           text-transform: uppercase;
           margin: 0 0 2mm 0;
         }
@@ -263,7 +264,7 @@ function buildHtmlDocument({ training, players, teamName, logoDataUrl, exercises
         }
         .exercise-card {
           border: 0.3mm solid #e5e7eb;
-          border-left: 1.5mm solid #0f9d58;
+          border-left: 1.5mm solid ${accentStart};
           border-radius: 3mm;
           padding: 2.5mm;
           display: grid;
@@ -292,7 +293,7 @@ function buildHtmlDocument({ training, players, teamName, logoDataUrl, exercises
         .exercise-title {
           font-size: 7.6pt;
           font-weight: 700;
-          color: #0f9d58;
+          color: ${accentStart};
           margin-bottom: 0.8mm;
         }
         .exercise-meta {
@@ -322,7 +323,7 @@ function buildHtmlDocument({ training, players, teamName, logoDataUrl, exercises
       <div class="header">
         ${logoDataUrl ? `<img class="header-logo" src="${logoDataUrl}" alt="Escudo" />` : '<div class="header-logo"></div>'}
         <div class="header-copy">
-          <div class="club-name">${escapeHtml(CLUB_NAME)}</div>
+          <div class="club-name">${escapeHtml(teamName)}</div>
           <div class="club-date">${escapeHtml(trainingDate)}</div>
         </div>
       </div>
@@ -370,17 +371,21 @@ function buildHtmlDocument({ training, players, teamName, logoDataUrl, exercises
       </div>
 
       <div class="footer">
-        ${escapeHtml(teamName || CLUB_NAME)} · Generado automáticamente
+        ${escapeHtml(teamName)} · Generado automáticamente
       </div>
     </div>
   `
 }
 
-export async function exportTrainingToPdf(training, players, teamName){
+export async function exportTrainingToPdf(training, players, team){
   try{
     if(!training) throw new Error('No hay datos de entrenamiento')
 
-    const logoDataUrl = await fetchImageAsDataUrl(`${import.meta.env.BASE_URL || '/'}logo-192.png`)
+    const teamName = team?.name || 'Mi equipo'
+    const accentStart = team?.gradient_start || DEFAULT_ACCENT_START
+    const accentEnd = team?.gradient_end || DEFAULT_ACCENT_END
+
+    const logoDataUrl = await fetchImageAsDataUrl(team?.crest_url)
     const playersHtml = buildPlayerList(training, players)
       .map((player) => `<div class="attendance-item">${escapeHtml(player)}</div>`)
       .join('')
@@ -397,6 +402,8 @@ export async function exportTrainingToPdf(training, players, teamName){
       players,
       teamName,
       logoDataUrl,
+      accentStart,
+      accentEnd,
       exercisesHtml,
       playersHtml,
       objectivesHtml

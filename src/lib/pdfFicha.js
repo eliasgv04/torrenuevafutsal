@@ -8,8 +8,8 @@ import {
   SECTION
 } from './trainingFicha'
 
-const LOGO_URL = `${import.meta.env.BASE_URL || '/'}logo-192.png`
-const CLUB_NAME = 'Torrenueva Fútbol Sala · 2026/27'
+const DEFAULT_ACCENT_START = '#1E3A8A'
+const DEFAULT_ACCENT_END = '#2563EB'
 
 // A4 dimensions for the design canvas. We render to this exact aspect ratio
 // so the result fits one A4 page perfectly with print-friendly proportions.
@@ -68,7 +68,7 @@ function ensureFontsLoaded(){
   })
 }
 
-function buildHtml({ training, ficha, sessionNumber, teamName, attending, extras, photos, logoDataUrl }){
+function buildHtml({ training, ficha, sessionNumber, teamName, attending, extras, photos, logoDataUrl, accentStart, accentEnd }){
   const sections = sectionsFromItems(training.items || [])
   const inicio = sections[SECTION.WARMUP_INICIO]
   const movs = sections[SECTION.WARMUP_MOVIMIENTOS] || []
@@ -179,15 +179,15 @@ function buildHtml({ training, ficha, sessionNumber, teamName, attending, extras
         .head-team {
           display: inline-flex; align-self: flex-start; align-items: center; gap: 6px;
           padding: 4px 10px; border-radius: 999px;
-          background: #14532d; color: #ffffff;
+          background: ${accentStart}; color: #ffffff;
           font-family: 'Sora', sans-serif; font-weight: 700; font-size: 11px;
           text-transform: uppercase; letter-spacing: 1px;
           margin-top: 2px;
-          border: 1px solid #14532d;
+          border: 1px solid ${accentStart};
         }
         .head-team::before {
           content: ''; width: 5px; height: 5px; border-radius: 50%;
-          background: #facc15;
+          background: ${accentEnd};
         }
         .head-logo {
           width: 60px; height: 60px; object-fit: contain;
@@ -492,7 +492,7 @@ function buildHtml({ training, ficha, sessionNumber, teamName, attending, extras
       <!-- HEADER -->
       <div class="header">
         <div class="head-text">
-          <div class="head-eyebrow">${escapeHtml(CLUB_NAME)}</div>
+          <div class="head-eyebrow">${escapeHtml(teamName)}</div>
           <div class="head-title">Ficha de entrenamiento</div>
           <div class="head-team">${escapeHtml(safe(teamName, 'Equipo'))}</div>
         </div>
@@ -614,8 +614,12 @@ function buildHtml({ training, ficha, sessionNumber, teamName, attending, extras
   `
 }
 
-export async function exportTrainingFichaToPdf(training, players, exercises, teamName, allTrainings){
+export async function exportTrainingFichaToPdf(training, players, exercises, team, allTrainings){
   if(!training) throw new Error('No hay datos de entrenamiento')
+  const teamName = team?.name || 'Equipo'
+  const accentStart = team?.gradient_start || DEFAULT_ACCENT_START
+  const accentEnd = team?.gradient_end || DEFAULT_ACCENT_END
+
   const playerLookup = new Map((players || []).map((p) => [p.id, p]))
   const exerciseLookup = new Map((exercises || []).map((ex) => [ex.id, ex]))
   const ficha = readFicha(training.objectives) || {}
@@ -629,7 +633,7 @@ export async function exportTrainingFichaToPdf(training, players, exercises, tea
 
   const sections = sectionsFromItems(training.items || [])
   const [logoDataUrl, inicioPhoto, posesionPhoto, ...mainPhotos] = await Promise.all([
-    fetchAsDataUrl(LOGO_URL),
+    fetchAsDataUrl(team?.crest_url),
     fetchAsDataUrl(pickPhotoUrl(sections[SECTION.WARMUP_INICIO], exerciseLookup)),
     fetchAsDataUrl(pickPhotoUrl(sections[SECTION.WARMUP_POSESION], exerciseLookup)),
     ...sections.main.map((m) => fetchAsDataUrl(pickPhotoUrl(m, exerciseLookup)))
@@ -643,7 +647,9 @@ export async function exportTrainingFichaToPdf(training, players, exercises, tea
     teamName,
     attending, extras,
     photos: { inicio: inicioPhoto, posesion: posesionPhoto, main: mainPhotos },
-    logoDataUrl
+    logoDataUrl,
+    accentStart,
+    accentEnd
   })
 
   const wrapper = document.createElement('div')

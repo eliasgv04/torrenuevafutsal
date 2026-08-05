@@ -11,6 +11,7 @@ export default function App() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [activeTeam, setActiveTeam] = useState(null)
 
   useEffect(() => {
     if (!supabase) {
@@ -63,7 +64,7 @@ export default function App() {
       <div className="login-shell">
         <div className="login-card">
           <h2>Acceso privado</h2>
-          <p>Introduce tus credenciales para entrar a Torrenueva Futsal.</p>
+          <p>Introduce tus credenciales para entrar a FutsalKit.</p>
           <form onSubmit={handleLogin}>
             <label htmlFor="login-user">Usuario</label>
             <input
@@ -93,17 +94,21 @@ export default function App() {
     )
   }
 
+  const bgStart = activeTeam?.gradient_start || '#172554'
+  const bgEnd = activeTeam?.gradient_end || '#2563EB'
+  const teamGradient = `linear-gradient(135deg, ${bgStart} 0%, ${bgEnd} 100%)`
+
   return (
-    <div className="app-root">
+    <div className="app-root" style={{ background: teamGradient }}>
       <header className="app-header">
-        <img src="./logo-192.png" alt="Torrenueva logo" className="logo" />
-        <h1>Torrenueva Futsal</h1>
-        <button className="btn btn-cancel" onClick={handleLogout} style={{ marginLeft: 'auto' }}>
+        <img src="./futsalkit-icon.svg" alt="FutsalKit" className="logo" />
+        <h1>FutsalKit</h1>
+        <button className="btn btn-danger" onClick={handleLogout} style={{ marginLeft: 'auto' }}>
           Cerrar sesión
         </button>
       </header>
       <main>
-        <HomePage />
+        <HomePage onActiveTeamChange={setActiveTeam} />
       </main>
     </div>
   )

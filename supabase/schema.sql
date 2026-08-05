@@ -4,6 +4,9 @@
 create table if not exists teams (
   id uuid primary key default gen_random_uuid(),
   name text not null,
+  gradient_start text default '#1E3A8A',
+  gradient_end text default '#2563EB',
+  crest_url text,
   created_at timestamp with time zone default timezone('utc', now())
 );
 

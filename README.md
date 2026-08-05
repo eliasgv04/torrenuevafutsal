@@ -1,6 +1,6 @@
-# Torrenueva Futsal — Gestión de equipo
+# FutsalKit — Gestión de equipos de fútbol sala
 
-Aplicación web privada para la gestión integral de un equipo de fútbol sala. Permite organizar ejercicios, planificar entrenamientos, llevar estadísticas de jugadores y gestionar partidos.
+Aplicación web privada para la gestión integral de equipos de fútbol sala. Permite organizar ejercicios, planificar entrenamientos, llevar estadísticas de jugadores y gestionar partidos. Cada equipo puede personalizar su propio escudo y colores.
 
 **Demo:** [eliasgv04.github.io/torrenuevafutsal](https://eliasgv04.github.io/torrenuevafutsal/)
 > Acceso restringido. Credenciales disponibles bajo solicitud.

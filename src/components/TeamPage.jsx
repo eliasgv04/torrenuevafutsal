@@ -209,7 +209,7 @@ export default function TeamPage({ team, onBack }) {
           training,
           players,
           exercises,
-          team.name,
+          team,
           trainings,
         );
         return;
@@ -218,7 +218,7 @@ export default function TeamPage({ team, onBack }) {
         alert("El entrenamiento no tiene ejercicios");
         return;
       }
-      await exportTrainingToPdf(training, players, team.name);
+      await exportTrainingToPdf(training, players, team);
     } catch (error) {
       console.error("Error en exportSingleTraining:", error);
       alert("Error al exportar: " + (error.message || error));

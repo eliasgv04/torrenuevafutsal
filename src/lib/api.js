@@ -234,6 +234,33 @@ export const api = {
     return t
   },
 
+  async updateTeam(teamId, {name, gradient_start, gradient_end, crest_url}){
+    const payload = {}
+    if(name !== undefined) payload.name = name
+    if(gradient_start !== undefined) payload.gradient_start = gradient_start
+    if(gradient_end !== undefined) payload.gradient_end = gradient_end
+    if(crest_url !== undefined) payload.crest_url = crest_url
+
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase.from('teams').update(payload).eq('id', teamId).select().single()
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+
+    const items = lsGet(LS_TEAMS)
+    const idx = items.findIndex(t=>t.id===teamId)
+    if(idx>=0){
+      items[idx] = { ...items[idx], ...payload }
+      lsSet(LS_TEAMS, items)
+      return items[idx]
+    }
+    return null
+  },
+
   async deleteTeam(teamId){
     try{
       if(HAS_SUPABASE){
