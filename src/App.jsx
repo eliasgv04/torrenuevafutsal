@@ -8,6 +8,7 @@ import { supabase } from './lib/supabaseClient'
 const VALID_USERS = {
   'torrenuevafutsal': 'torrenuevafutsal@torrenuevafutsal.local',
   'rodrijimbee': 'rodrijimbee@torrenuevafutsal.local',
+  'davidmanzanares': 'davidmanzanares@torrenuevafutsal.local',
 }
 
 export default function App() {
