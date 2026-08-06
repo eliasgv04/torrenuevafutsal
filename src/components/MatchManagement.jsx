@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { api } from '../lib/api'
-import { ArrowLeftIcon, TrashIcon } from './Icons'
+import { exportMatchToPdf } from '../lib/pdfMatchExport'
+import { ArrowLeftIcon, TrashIcon, DownloadIcon } from './Icons'
 
-export default function MatchManagement({ teamId, onSelectMatch, onClose }) {
+export default function MatchManagement({ teamId, team, players, onSelectMatch, onClose }) {
   const [matches, setMatches] = useState([])
   const [showForm, setShowForm] = useState(false)
+  const [exportingId, setExportingId] = useState(null)
   const [formData, setFormData] = useState({
     rival_team_name: '',
     match_date: '',
@@ -44,6 +46,15 @@ export default function MatchManagement({ teamId, onSelectMatch, onClose }) {
     if (confirm('¿Eliminar partido?')) {
       await api.deleteMatch(matchId)
       loadMatches()
+    }
+  }
+
+  const handleExportMatch = async (match) => {
+    setExportingId(match.id)
+    try {
+      await exportMatchToPdf(match, players, team)
+    } finally {
+      setExportingId(null)
     }
   }
 
@@ -150,8 +161,13 @@ export default function MatchManagement({ teamId, onSelectMatch, onClose }) {
               </div>
               <div className="match-actions">
                 <button className="btn btn-secondary" style={{marginTop:0}} onClick={() => onSelectMatch(match)}>
-                  Trackear
+                  {match.status === 'finished' ? 'Ver' : 'Registrar'}
                 </button>
+                {match.status === 'finished' && (
+                  <button className="btn" style={{marginTop:0}} onClick={() => handleExportMatch(match)} disabled={exportingId === match.id}>
+                    <DownloadIcon size={13}/> {exportingId === match.id ? 'Generando...' : 'Exportar PDF'}
+                  </button>
+                )}
                 <button className="btn btn-danger" style={{marginTop:0}} onClick={() => handleDeleteMatch(match.id)}>
                   <TrashIcon size={13}/> Eliminar
                 </button>

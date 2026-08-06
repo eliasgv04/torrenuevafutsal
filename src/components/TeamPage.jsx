@@ -541,12 +541,15 @@ export default function TeamPage({ team, onBack }) {
             match={selectedMatch}
             teamId={team.id}
             teamName={team.name}
+            team={team}
             players={players}
             onClose={() => setSelectedMatch(null)}
           />
         ) : (
           <MatchManagement
             teamId={team.id}
+            team={team}
+            players={players}
             onSelectMatch={(match) => setSelectedMatch(match)}
             onClose={() => setView("hub")}
           />

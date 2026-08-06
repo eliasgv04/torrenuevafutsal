@@ -353,7 +353,7 @@ export default function FutsalStats({ teamId, onClose, embedded }) {
                     <div style={{fontSize:12,opacity:.8}}>{scorers[0].position}</div>
                   </div>
                   <div style={{marginLeft:'auto',textAlign:'right'}}>
-                    <div style={{fontSize:28,fontWeight:800,fontFamily:'Poppins',color:'#2563EB',lineHeight:1}}>{scorers[0].goals}</div>
+                    <div style={{fontSize:28,fontWeight:800,fontFamily:'Poppins',color:'#fff',lineHeight:1}}>{scorers[0].goals}</div>
                     <div style={{fontSize:11,opacity:.7}}>goles</div>
                   </div>
                 </div>
@@ -403,7 +403,7 @@ export default function FutsalStats({ teamId, onClose, embedded }) {
             {/* Minutos */}
             <SectionCard title="Más minutos jugados" icon={<ClockIcon size={14}/>}>
               {minLeaders.length===0 ? <Empty/> : minLeaders.map((p,i)=>(
-                <PlayerRankRow key={p.id} rank={i+1} player={p} value={Math.floor(p.minutes_played/60)+'m'} sub={`${p.matches} partidos`} highlight={i===0}/>
+                <PlayerRankRow key={p.id} rank={i+1} player={p} value={fmtMins(p.minutes_played)} sub={`${p.matches} partidos`} highlight={i===0}/>
               ))}
             </SectionCard>
 
@@ -419,7 +419,7 @@ export default function FutsalStats({ teamId, onClose, embedded }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {[...playerAggregates].sort((a,b)=>b.goals-a.goals||b.assists-a.assists).map((p,i)=>(
+                    {[...playerAggregates].sort((a,b)=>b.minutes_played-a.minutes_played).map((p,i)=>(
                       <tr key={p.id} style={{background:i%2===0?'#fff':'#f8faf8',borderBottom:'1px solid #eee'}}>
                         <td style={{padding:'5px 8px',textAlign:'center',fontWeight:700}}>{p.dorsal}</td>
                         <td style={{padding:'5px 8px',whiteSpace:'nowrap'}}>{p.name} {p.surname}</td>
@@ -431,7 +431,7 @@ export default function FutsalStats({ teamId, onClose, embedded }) {
                         <td style={{padding:'5px 8px',textAlign:'center'}}>{p.fouls}</td>
                         <td style={{padding:'5px 8px',textAlign:'center',color:p.yellow_cards>0?'#d97706':'#999'}}>{p.yellow_cards}</td>
                         <td style={{padding:'5px 8px',textAlign:'center',color:p.red_cards>0?'#ef4444':'#999'}}>{p.red_cards}</td>
-                        <td style={{padding:'5px 8px',textAlign:'center',fontSize:11}}>{Math.floor(p.minutes_played/60)}m</td>
+                        <td style={{padding:'5px 8px',textAlign:'center',fontSize:11,whiteSpace:'nowrap'}}>{fmtMins(p.minutes_played)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -499,7 +499,7 @@ export default function FutsalStats({ teamId, onClose, embedded }) {
             </SectionCard>
 
             <SectionCard title="Goles por partido (últimos 10)">
-              <GoalsBarChart data={matchData.sort((a,b)=>new Date(a.match_date)-new Date(b.match_date))}/>
+              <GoalsBarChart data={[...matchData].sort((a,b)=>new Date(a.match_date)-new Date(b.match_date))}/>
             </SectionCard>
 
             {/* Goals breakdown */}

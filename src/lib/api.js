@@ -1025,7 +1025,7 @@ export const api = {
             )
           `)
           .eq('player_id', playerId)
-          .order('match_date', {ascending:false})
+          .order('match_date', {foreignTable:'matches', ascending:false})
         if(error) throw error
         return data.map(d=>({
           id: d.id,

@@ -1,9 +1,49 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { api } from '../lib/api'
-import { ArrowLeftIcon, XIcon, PauseIcon, PlayIcon } from './Icons'
+import { exportMatchToPdf } from '../lib/pdfMatchExport'
+import { ArrowLeftIcon, XIcon, PauseIcon, PlayIcon, DownloadIcon } from './Icons'
 
-export default function MatchTracker({ match, teamId, teamName, players, onClose }) {
+// Defined at module scope (not inside MatchTracker) so it keeps a stable
+// component identity across renders — the chrono re-renders MatchTracker
+// every second while running, and a component redefined inline gets
+// remounted on every one of those renders, which was causing clicks on the
+// +/- buttons to occasionally double-fire (stats jumping by two).
+function StatStepper({ value, onChange, onBlur, min=0, max }) {
+  const v = Number(value) || 0
+  return (
+    <div className="stepper">
+      <button type="button" onClick={() => { const nv = Math.max(min, v-1); onChange(nv); if (onBlur) onBlur() }}>-</button>
+      <input type="number" value={v} min={min} max={max}
+        onChange={e => onChange(Math.max(min, Math.round(Number(e.target.value)) || 0))}
+        onBlur={() => onBlur?.()}
+      />
+      <button type="button" onClick={() => { const nv = max !== undefined ? Math.min(max, v+1) : v+1; onChange(nv); if (onBlur) onBlur() }}>+</button>
+    </div>
+  )
+}
+
+function finalizeToneColor(tone) {
+  return tone === 'success' ? '#22c55e' : tone === 'error' ? '#ef4444' : '#f59e0b'
+}
+
+function FinalizeToneIcon({ tone }) {
+  const color = finalizeToneColor(tone)
+  const common = { width:20, height:20, viewBox:'0 0 24 24', fill:'none', stroke:color, strokeWidth:'2.5', strokeLinecap:'round', strokeLinejoin:'round' }
+  if (tone === 'success') return <svg {...common}><path d="M5 13l4 4L19 7"/></svg>
+  if (tone === 'error')   return <svg {...common}><path d="M18 6L6 18M6 6l12 12"/></svg>
+  return (
+    <svg {...common}>
+      <path d="M10.29 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.71 3.86a1 1 0 0 0-1.72 0z"/>
+      <path d="M12 9v4M12 17h.01"/>
+    </svg>
+  )
+}
+
+export default function MatchTracker({ match, teamId, teamName, team, players, onClose }) {
   const ourTeamName = teamName || 'Nuestro equipo'
+  // Finished matches open in a read-only summary: no editing, no chrono, no
+  // drafts/autosave — just showing how the stats ended up.
+  const isReadOnly = match.status === 'finished'
   const [onFieldPlayers,          setOnFieldPlayers]          = useState([])
   const [playerStats,             setPlayerStats]             = useState({})
   const [rivalStats,              setRivalStats]              = useState({ goals:0, shots_on_goal:0, fouls:0, yellow_cards:0, red_cards:0 })
@@ -15,6 +55,8 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
   const [saveStatus,              setSaveStatus]              = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
   const [confirmDialog,           setConfirmDialog]           = useState({ isOpen:false, message:'', onConfirm:null, onCancel:null })
   const [redCardAlert,            setRedCardAlert]            = useState(null) // { playerId, playerName, onFieldId }
+  const [finalizeInfo,            setFinalizeInfo]            = useState(null) // { tone:'success'|'warning'|'error', title, message }
+  const [exportingPdf,            setExportingPdf]            = useState(false)
 
   const chronoIntervalRef  = useRef(null)
   const actionLockRef      = useRef(false)
@@ -27,6 +69,7 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
 
   // ── Chrono ──────────────────────────────────────────────────────────
   useEffect(() => {
+    if (isReadOnly) return
     if (isChronoRunning) {
       chronoIntervalRef.current = setInterval(() => setChrono(p => p + 1), 1000)
     } else {
@@ -38,6 +81,7 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
   // ── Space-bar toggle ────────────────────────────────────────────────
   useEffect(() => {
     const handler = (e) => {
+      if (isReadOnly) return
       if (e.code !== 'Space' || e.repeat) return
       const t = e.target
       if (t?.tagName === 'INPUT' || t?.tagName === 'TEXTAREA' || t?.tagName === 'SELECT' || t?.isContentEditable) return
@@ -51,7 +95,7 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
 
   // ── Draft save (debounced 350ms) ────────────────────────────────────
   useEffect(() => {
-    if (!draftRestoredRef.current) return
+    if (isReadOnly || !draftRestoredRef.current) return
     clearTimeout(draftSaveTimerRef.current)
     draftSaveTimerRef.current = setTimeout(() => saveDraft(), 350)
     return () => clearTimeout(draftSaveTimerRef.current)
@@ -59,6 +103,7 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
 
   // ── Draft save on tab close ─────────────────────────────────────────
   useEffect(() => {
+    if (isReadOnly) return
     const handler = () => saveDraft()
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
@@ -66,6 +111,7 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
 
   // ── Periodic auto-save every 30s ────────────────────────────────────
   useEffect(() => {
+    if (isReadOnly) return
     autoSaveIntervalRef.current = setInterval(() => {
       if (draftRestoredRef.current) autoSaveAll()
     }, 30_000)
@@ -100,7 +146,32 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
   }
 
   // ── Load from DB (+ optional draft restore) ─────────────────────────
+  // Called on mount AND after every field action (sub, remove, red card...).
+  // Only the very first call may pull player/rival stats from the DB or a
+  // draft — later calls only reconcile onFieldPlayers, so an in-flight
+  // (debounced, not-yet-saved) stat edit for another player can never get
+  // silently reverted by a refetch triggered by an unrelated field action.
   const loadMatchData = async () => {
+    if (isReadOnly) {
+      try {
+        const [stats, rival] = await Promise.all([
+          api.getMatchPlayerStats(match.id),
+          api.getRivalTeamStats(match.id)
+        ])
+        const statsMap = {}
+        stats.forEach(s => { statsMap[s.player_id] = s })
+        setPlayerStats(statsMap)
+        if (rival) {
+          setRivalStats({ goals: rival.goals??0, shots_on_goal: rival.shots_on_goal??0, fouls: rival.fouls??0, yellow_cards: rival.yellow_cards??0, red_cards: rival.red_cards??0 })
+        }
+        setMatchNotes(match.notes || '')
+      } catch (err) {
+        console.error('Error cargando datos del partido:', err)
+      }
+      return
+    }
+
+    const isInitialLoad = !draftRestoredRef.current
     try {
       const [onField, stats, rival] = await Promise.all([
         api.getOnFieldPlayers(match.id),
@@ -111,8 +182,11 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
       const normOnField = (Array.isArray(onField) ? onField : [])
         .map(o => ({ ...o, entry_minute: Number(o.entry_minute ?? 0), exit_minute: o.exit_minute == null ? null : Number(o.exit_minute) }))
 
-      // Attempt draft restore (only once per mount)
-      if (!draftRestoredRef.current) {
+      const statsMap = {}
+      stats.forEach(s => { statsMap[s.player_id] = s })
+
+      // Attempt draft restore (only on the very first load)
+      if (isInitialLoad) {
         const draftRaw = localStorage.getItem(draftKey)
         if (draftRaw) {
           try {
@@ -127,7 +201,8 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
               setChrono((d.chrono ?? 0) + (d.isChronoRunning ? Math.floor(age / 1000) : 0))
               setIsChronoRunning(Boolean(d.isChronoRunning))
               setOnFieldPlayers(validDraftOnField)
-              setPlayerStats(d.playerStats || {})
+              // Draft wins per-player; DB only fills in players the draft doesn't have
+              setPlayerStats({ ...statsMap, ...(d.playerStats || {}) })
 
               // Deep-merge rival stats: DB wins for missing draft fields
               setRivalStats({
@@ -150,25 +225,35 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
         }
       }
 
-      // No valid draft — load from DB
+      // No valid draft — reconcile on-field list from DB (always, so the
+      // action that triggered this call is reflected with real DB ids)
       const validOnField = normOnField.filter(o => players.some(p => p.id === o.player_id))
       setOnFieldPlayers(validOnField)
 
-      const statsMap = {}
-      stats.forEach(s => { statsMap[s.player_id] = s })
-      setPlayerStats(prev => {
-        const merged = { ...prev, ...statsMap }
-        validOnField.forEach(o => {
-          if (!merged[o.player_id]) merged[o.player_id] = emptyStats(o.player_id)
+      if (isInitialLoad) {
+        setPlayerStats(prev => {
+          const merged = { ...statsMap, ...prev }
+          validOnField.forEach(o => {
+            if (!merged[o.player_id]) merged[o.player_id] = emptyStats(o.player_id)
+          })
+          return merged
         })
-        return merged
-      })
-
-      if (rival) {
-        setRivalStats({ goals: rival.goals??0, shots_on_goal: rival.shots_on_goal??0, fouls: rival.fouls??0, yellow_cards: rival.yellow_cards??0, red_cards: rival.red_cards??0 })
+        if (rival) {
+          setRivalStats({ goals: rival.goals??0, shots_on_goal: rival.shots_on_goal??0, fouls: rival.fouls??0, yellow_cards: rival.yellow_cards??0, red_cards: rival.red_cards??0 })
+        }
+        setMatchNotes(match.notes || '')
+        draftRestoredRef.current = true
+      } else {
+        // Just ensure any freshly-on-fielded player has a stats entry
+        setPlayerStats(prev => {
+          let changed = false
+          const merged = { ...prev }
+          validOnField.forEach(o => {
+            if (!merged[o.player_id]) { merged[o.player_id] = emptyStats(o.player_id); changed = true }
+          })
+          return changed ? merged : prev
+        })
       }
-      setMatchNotes(match.notes || '')
-      draftRestoredRef.current = true
     } catch (err) {
       console.error('Error cargando datos del partido:', err)
       alert('Error al cargar el partido. Revisa la conexión e inténtalo de nuevo.')
@@ -274,6 +359,12 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
   // ── Field management ─────────────────────────────────────────────────
   const currentOnField = onFieldPlayers.filter(o => o.exit_minute === null && players.some(p => p.id === o.player_id))
   const benchPlayers   = players.filter(p => !currentOnField.find(o => o.player_id === p.id))
+
+  // Read-only summary: every player who has a stats row, sorted by dorsal
+  const finishedPlayerStats = Object.entries(playerStats)
+    .map(([playerId, st]) => ({ player: players.find(p => p.id === playerId), st }))
+    .filter(row => row.player)
+    .sort((a, b) => (a.player.dorsal ?? 0) - (b.player.dorsal ?? 0))
 
   const handleAddPlayerToField = async (playerId) => {
     if (actionLockRef.current) return
@@ -396,15 +487,22 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
   const isHome   = match.is_home !== false
   const homeScore = isHome ? totalTeamGoals : totalRivalGoals
   const awayScore = isHome ? totalRivalGoals : totalTeamGoals
+  // homeScore/awayScore is what gets persisted (real "home team"/"away team"
+  // convention). Every display, though, always shows our team first — this
+  // is what the scoreboard, MatchManagement's list and the PDF export all do,
+  // so this must match them or "local"/"visitante" reads backwards depending
+  // which screen you're on.
+  const ourScore   = isHome ? homeScore : awayScore
+  const rivalScore = isHome ? awayScore : homeScore
 
   const handleFinalizeMatch = () => {
     if (match.status === 'finished') {
-      alert('Este partido ya fue finalizado.')
+      setFinalizeInfo({ tone:'warning', title:'Partido ya finalizado', message:'Este partido ya fue finalizado.' })
       return
     }
     setConfirmDialog({
       isOpen: true,
-      message: `¿Finalizar partido?\n\n${isHome ? ourTeamName : match.rival_team_name} ${homeScore} - ${awayScore} ${isHome ? match.rival_team_name : ourTeamName}\n\nSe guardarán todas las estadísticas.`,
+      message: `¿Finalizar partido?\n\n${ourTeamName} ${ourScore} - ${rivalScore} ${match.rival_team_name}\n\nSe guardarán todas las estadísticas.`,
       onConfirm: async () => {
         closeConfirm()
         try {
@@ -431,15 +529,27 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
           localStorage.removeItem(draftKey)
           setSaveStatus('saved')
 
-          const msg = statErrors.length > 0
-            ? `Partido finalizado con advertencias.\n${statErrors.length} estadística(s) de jugador no se pudieron guardar.`
-            : 'Partido finalizado y guardado correctamente.'
-          alert(msg)
-          onClose()
+          if (statErrors.length > 0) {
+            setFinalizeInfo({
+              tone: 'warning',
+              title: 'Partido finalizado con advertencias',
+              message: `${statErrors.length} estadística(s) de jugador no se pudieron guardar.`,
+            })
+          } else {
+            setFinalizeInfo({
+              tone: 'success',
+              title: 'Partido finalizado',
+              message: `${ourTeamName} ${ourScore} - ${rivalScore} ${match.rival_team_name}\n\nTodas las estadísticas se han guardado correctamente.`,
+            })
+          }
         } catch (err) {
           console.error('Error finalizando partido:', err)
           setSaveStatus('error')
-          alert('Error al finalizar el partido: ' + (err.message || err) + '\n\nLos datos se han guardado en borrador local.')
+          setFinalizeInfo({
+            tone: 'error',
+            title: 'Error al finalizar el partido',
+            message: `${err.message || err}\n\nLos datos se han guardado en borrador local. Puedes reintentar sin perder nada.`,
+          })
         } finally {
           setIsProcessing(false)
         }
@@ -459,19 +569,19 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
 
   function closeConfirm() { setConfirmDialog({ isOpen:false, message:'', onConfirm:null, onCancel:null }) }
 
-  // ── Stepper component ────────────────────────────────────────────────
-  function StatStepper({ value, onChange, onBlur, min=0, max }) {
-    const v = Number(value) || 0
-    return (
-      <div className="stepper">
-        <button type="button" onClick={() => { const nv = Math.max(min, v-1); onChange(nv); if (onBlur) onBlur() }}>-</button>
-        <input type="number" value={v} min={min} max={max}
-          onChange={e => onChange(Math.max(min, Math.round(Number(e.target.value)) || 0))}
-          onBlur={() => onBlur?.()}
-        />
-        <button type="button" onClick={() => { const nv = max !== undefined ? Math.min(max, v+1) : v+1; onChange(nv); if (onBlur) onBlur() }}>+</button>
-      </div>
-    )
+  const handleExportPdf = async () => {
+    setExportingPdf(true)
+    try {
+      await exportMatchToPdf(match, players, team)
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
+  function closeFinalizeInfo() {
+    const wasFinalized = finalizeInfo?.tone !== 'error'
+    setFinalizeInfo(null)
+    if (wasFinalized) onClose()
   }
 
   // ── Position colors ──────────────────────────────────────────────────
@@ -491,20 +601,28 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
           <h2 style={{display:'inline-block',marginLeft:16,marginTop:0,fontSize:22}}>{match.rival_team_name} · {match.place}</h2>
         </div>
         <div style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap'}}>
-          {saveStatusLabel && (
-            <span style={{fontSize:12, color:saveStatusColor, fontWeight:700}}>{saveStatusLabel}</span>
+          {isReadOnly ? (
+            <span style={{fontSize:12, color:'#666', fontWeight:700, background:'rgba(0,0,0,0.06)', padding:'6px 12px', borderRadius:20}}>
+              Partido finalizado · solo lectura
+            </span>
+          ) : (
+            <>
+              {saveStatusLabel && (
+                <span style={{fontSize:12, color:saveStatusColor, fontWeight:700}}>{saveStatusLabel}</span>
+              )}
+              {isProcessing && <span style={{fontSize:12, color:'#f59e0b', fontWeight:700}}>Procesando...</span>}
+              <button className="btn btn-secondary" onClick={autoSaveAll} disabled={isProcessing}>
+                Guardar ahora
+              </button>
+            </>
           )}
-          {isProcessing && <span style={{fontSize:12, color:'#f59e0b', fontWeight:700}}>Procesando...</span>}
-          <button className="btn btn-secondary" onClick={autoSaveAll} disabled={isProcessing}>
-            Guardar ahora
-          </button>
         </div>
       </div>
 
       <div className="tracker-content">
 
         {/* Chrono */}
-        <div className="chrono-section">
+        {!isReadOnly && <div className="chrono-section">
           <div className="chrono-title-row">
             <h3>Tiempo del partido {isChronoRunning && <span style={{color:'#2ecc71',fontSize:12}}>● EN DIRECTO</span>}</h3>
           </div>
@@ -520,23 +638,67 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
               Reiniciar
             </button>
           </div>
-        </div>
+        </div>}
 
-        {/* Scoreboard */}
+        {/* Scoreboard — our team always shown first, regardless of home/away */}
         <div className="live-scoreboard">
           <div className="score-team">
-            <span className="score-label">{isHome ? `${ourTeamName} (Local)` : match.rival_team_name}</span>
-            <strong>{homeScore}</strong>
+            <span className="score-label">{ourTeamName} ({isHome ? 'Local' : 'Visitante'})</span>
+            <strong>{ourScore}</strong>
           </div>
           <div className="score-separator">-</div>
           <div className="score-team">
-            <span className="score-label">{isHome ? match.rival_team_name : `${ourTeamName} (Visitante)`}</span>
-            <strong>{awayScore}</strong>
+            <span className="score-label">{match.rival_team_name}</span>
+            <strong>{rivalScore}</strong>
           </div>
         </div>
 
+        {/* Read-only player stats summary (finished matches) */}
+        {isReadOnly && (
+          <div className="on-field-section">
+            <h3>Jugadores ({finishedPlayerStats.length})</h3>
+            <div className="on-field-table-container">
+              <table className="on-field-table">
+                <thead>
+                  <tr>
+                    <th>#</th><th>Nombre</th><th>Pos.</th>
+                    <th>Goles</th><th>Asist.</th><th>T.Puerta</th><th>Fuera</th><th>Faltas</th>
+                    <th><span style={{display:'inline-block',width:14,height:14,borderRadius:3,background:'#fbbf24',verticalAlign:'middle'}}/></th>
+                    <th><span style={{display:'inline-block',width:14,height:14,borderRadius:3,background:'#ef4444',verticalAlign:'middle'}}/></th>
+                    <th>Tiempo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {finishedPlayerStats.map(({ player, st }) => (
+                    <tr key={player.id} className="player-row-stats">
+                      <td className="dorsal-col">#{player.dorsal}</td>
+                      <td className="name-col">{player.name} {player.surname}</td>
+                      <td className="position-col">
+                        <span className="position-badge-small" style={{backgroundColor: positionColors[player.position] || '#999'}}>
+                          {(player.position || '?').slice(0,3)}
+                        </span>
+                      </td>
+                      <td style={{textAlign:'center'}}>{st.goals??0}</td>
+                      <td style={{textAlign:'center'}}>{st.assists??0}</td>
+                      <td style={{textAlign:'center'}}>{st.shots_on_goal??0}</td>
+                      <td style={{textAlign:'center'}}>{st.shots_out??0}</td>
+                      <td style={{textAlign:'center'}}>{st.fouls??0}</td>
+                      <td style={{textAlign:'center'}}>{st.yellow_cards??0}</td>
+                      <td style={{textAlign:'center'}}>{st.red_cards??0}</td>
+                      <td><span className="live-time-badge">{formatChrono(st.minutes_played??0)}</span></td>
+                    </tr>
+                  ))}
+                  {finishedPlayerStats.length === 0 && (
+                    <tr><td colSpan={11} style={{textAlign:'center',color:'#999',padding:'16px',fontStyle:'italic'}}>Sin estadísticas guardadas para este partido</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* On-field players */}
-        <div className="on-field-section">
+        {!isReadOnly && <div className="on-field-section">
           <h3>En Pista ({currentOnField.length}/5)
             {currentOnField.length < 5 && <span style={{color:'#f59e0b', fontSize:12, marginLeft:8}}>· {5 - currentOnField.length} plaza(s) libre(s)</span>}
             {currentOnField.length === 5 && <span style={{color:'#22c55e', fontSize:12, marginLeft:8}}>· Quinteto completo</span>}
@@ -592,10 +754,10 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
               </tbody>
             </table>
           </div>
-        </div>
+        </div>}
 
         {/* Bench */}
-        <div className="bench-section">
+        {!isReadOnly && <div className="bench-section">
           <h3>Suplentes ({benchPlayers.length})</h3>
           {currentOnField.length >= 5 && (
             <p className="bench-limit-note" style={{color:'#f59e0b',fontSize:12,margin:'4px 0'}}>
@@ -614,10 +776,10 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
               <span style={{fontSize:12,color:'#999',fontStyle:'italic'}}>Todos los jugadores están en pista</span>
             )}
           </div>
-        </div>
+        </div>}
 
         {/* Substitution panel */}
-        {selectedPlayerForChange && (
+        {!isReadOnly && selectedPlayerForChange && (
           <div className="substitution-modal">
             <h4>Selecciona el jugador que entra {isProcessing && '(procesando...)'}</h4>
             {benchPlayers.length === 0
@@ -644,7 +806,10 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
             ].map(([key, label]) => (
               <label key={key} className="rival-stat-field">
                 <span>{label}</span>
-                <StatStepper value={rivalStats[key]??0} onChange={v=>handleUpdateRivalStat(key,v)} onBlur={persistRivalStats}/>
+                {isReadOnly
+                  ? <span className="live-time-badge">{rivalStats[key]??0}</span>
+                  : <StatStepper value={rivalStats[key]??0} onChange={v=>handleUpdateRivalStat(key,v)} onBlur={persistRivalStats}/>
+                }
               </label>
             ))}
           </div>
@@ -653,19 +818,34 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
         {/* Notes */}
         <div className="match-notes-section">
           <label htmlFor="match-notes">Anotaciones del partido</label>
-          <textarea id="match-notes" rows={4} value={matchNotes}
-            onChange={e=>setMatchNotes(e.target.value)}
-            onBlur={() => api.updateMatchNotes({match_id:match.id, notes:matchNotes}).catch(console.error)}
-            placeholder="Observaciones, incidencias, tácticas usadas..."
-          />
+          {isReadOnly ? (
+            <p className="small" style={{margin:0}}>{matchNotes || 'Sin anotaciones.'}</p>
+          ) : (
+            <textarea id="match-notes" rows={4} value={matchNotes}
+              onChange={e=>setMatchNotes(e.target.value)}
+              onBlur={() => api.updateMatchNotes({match_id:match.id, notes:matchNotes}).catch(console.error)}
+              placeholder="Observaciones, incidencias, tácticas usadas..."
+            />
+          )}
         </div>
 
         {/* Footer actions */}
         <div className="match-footer-actions">
-          <button className="btn btn-secondary" style={{marginTop:0}} onClick={onClose}>Salir sin finalizar</button>
-          <button className="btn btn-danger" style={{marginTop:0}} onClick={handleFinalizeMatch} disabled={isProcessing}>
-            Finalizar partido
-          </button>
+          {isReadOnly ? (
+            <>
+              <button className="btn btn-secondary" style={{marginTop:0}} onClick={onClose}>Volver</button>
+              <button className="btn" style={{marginTop:0}} onClick={handleExportPdf} disabled={exportingPdf}>
+                <DownloadIcon size={13}/> {exportingPdf ? 'Generando...' : 'Exportar PDF'}
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="btn btn-secondary" style={{marginTop:0}} onClick={onClose}>Salir sin finalizar</button>
+              <button className="btn btn-danger" style={{marginTop:0}} onClick={handleFinalizeMatch} disabled={isProcessing}>
+                Finalizar partido
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -695,6 +875,20 @@ export default function MatchTracker({ match, teamId, teamName, players, onClose
               <button className="btn btn-secondary" style={{...dlgBtn, marginTop:0}} onClick={handleRedCardDismiss}>No, mantener</button>
               <button className="btn btn-danger" style={{...dlgBtn, marginTop:0}} onClick={handleRedCardRemove}>Sí, retirar</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Finalize result dialog */}
+      {finalizeInfo && (
+        <div style={dlgOverlay} onClick={closeFinalizeInfo}>
+          <div style={{...dlgContent, borderTop:`4px solid ${finalizeToneColor(finalizeInfo.tone)}`}} onClick={e=>e.stopPropagation()}>
+            <div style={{...dlgMsg, color:finalizeToneColor(finalizeInfo.tone), display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginBottom:12}}>
+              <FinalizeToneIcon tone={finalizeInfo.tone}/>
+              {finalizeInfo.title}
+            </div>
+            <div style={dlgMsg}>{finalizeInfo.message.split('\n').map((l,i)=><div key={i}>{l || <br/>}</div>)}</div>
+            <button className="btn btn-primary" style={{...dlgBtn, marginTop:0, width:'100%'}} onClick={closeFinalizeInfo}>Aceptar</button>
           </div>
         </div>
       )}

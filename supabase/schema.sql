@@ -117,7 +117,8 @@ create table if not exists match_player_stats (
   red_cards integer default 0,
   minutes_played integer default 0,
   saves integer default 0,
-  created_at timestamp with time zone default timezone('utc', now())
+  created_at timestamp with time zone default timezone('utc', now()),
+  unique (match_id, player_id)
 );
 
 -- Rival team statistics
@@ -129,7 +130,8 @@ create table if not exists rival_team_stats (
   fouls integer default 0,
   yellow_cards integer default 0,
   red_cards integer default 0,
-  created_at timestamp with time zone default timezone('utc', now())
+  created_at timestamp with time zone default timezone('utc', now()),
+  unique (match_id)
 );
 
 -- On-field players tracking (who is on the court at each moment)
