@@ -17,10 +17,12 @@ const GRADIENT_PRESETS = [
 ]
 
 export default function TeamBrandingModal({team, onSave, onCancel}){
-  const [gradientStart,setGradientStart] = useState(team.gradient_start || '#1E3A8A')
-  const [gradientEnd,setGradientEnd] = useState(team.gradient_end || '#2563EB')
+  const isCreate = !team
+  const [name,setName] = useState(team?.name || '')
+  const [gradientStart,setGradientStart] = useState(team?.gradient_start || '#1E3A8A')
+  const [gradientEnd,setGradientEnd] = useState(team?.gradient_end || '#2563EB')
   const [file,setFile] = useState(null)
-  const [preview,setPreview] = useState(team.crest_url || null)
+  const [preview,setPreview] = useState(team?.crest_url || null)
   const [removed,setRemoved] = useState(false)
   const [saving,setSaving] = useState(false)
   const fileInputRef = useRef(null)
@@ -43,9 +45,10 @@ export default function TeamBrandingModal({team, onSave, onCancel}){
   }
 
   async function submit(){
+    if(isCreate && !name.trim()) return
     setSaving(true)
     try{
-      await onSave({gradient_start: gradientStart, gradient_end: gradientEnd, file, removed})
+      await onSave({name: name.trim(), gradient_start: gradientStart, gradient_end: gradientEnd, file, removed})
     }finally{
       setSaving(false)
     }
@@ -54,9 +57,22 @@ export default function TeamBrandingModal({team, onSave, onCancel}){
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        <h3>Personalizar {team.name}</h3>
+        <h3>{isCreate ? 'Nuevo equipo' : `Personalizar ${team.name}`}</h3>
 
-        <label>Escudo del equipo</label>
+        {isCreate && (
+          <>
+            <label>Nombre del equipo</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e)=>setName(e.target.value)}
+              placeholder="Ej: Torrenueva Futsal"
+              autoFocus
+            />
+          </>
+        )}
+
+        <label style={isCreate ? {marginTop:'16px'} : undefined}>Escudo del equipo</label>
         <div className="crest-upload-row">
           <div className="crest-preview-wrap" onClick={()=>fileInputRef.current?.click()}>
             {preview ? (
@@ -109,7 +125,9 @@ export default function TeamBrandingModal({team, onSave, onCancel}){
         </div>
 
         <div className="modal-buttons">
-          <button className="btn btn-primary" onClick={submit} disabled={saving}>{saving ? 'Guardando...' : 'Guardar cambios'}</button>
+          <button className="btn btn-primary" onClick={submit} disabled={saving || (isCreate && !name.trim())}>
+            {saving ? 'Guardando...' : isCreate ? 'Crear equipo' : 'Guardar cambios'}
+          </button>
           <button className="btn btn-cancel" onClick={onCancel} disabled={saving}>Cancelar</button>
         </div>
       </div>

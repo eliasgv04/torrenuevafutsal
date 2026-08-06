@@ -217,10 +217,11 @@ export const api = {
     return items
   },
 
-  async createTeam(name){
+  async createTeam(name, {gradient_start, gradient_end, crest_url} = {}){
+    const payload = {name, gradient_start, gradient_end, crest_url}
     try{
       if(HAS_SUPABASE){
-        const { data, error } = await supabase.from('teams').insert({name}).select().single()
+        const { data, error } = await supabase.from('teams').insert(payload).select().single()
         if(error) throw error
         return data
       }
@@ -228,7 +229,7 @@ export const api = {
       console.error('Supabase error, falling back to localStorage:', e)
     }
     const items = lsGet(LS_TEAMS)
-    const t = {id:uid(), name, created_at: new Date().toISOString()}
+    const t = {id:uid(), ...payload, created_at: new Date().toISOString()}
     items.unshift(t)
     lsSet(LS_TEAMS, items)
     return t

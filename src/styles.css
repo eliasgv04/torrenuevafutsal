@@ -115,49 +115,65 @@ main{padding:32px 24px;flex:1}
   border:1px solid rgba(37,99,235,0.12);
 }
 
-.card-icon-btn{
+.team-card{
+  padding:0;
+  overflow:hidden;
+  align-items:center;
+  text-align:center;
+  cursor:pointer;
+}
+
+.team-card-actions{
   position:absolute;
-  top:14px;
-  right:14px;
-  width:34px;
-  height:34px;
+  top:12px;
+  right:12px;
+  display:flex;
+  gap:8px;
+  z-index:2;
+}
+
+.team-card-icon-btn{
+  width:30px;
+  height:30px;
   border-radius:999px;
-  border:1px solid rgba(30,58,138,0.18);
-  background:#fff;
+  border:none;
+  background:rgba(255,255,255,0.95);
   color:var(--green-dark);
   display:flex;
   align-items:center;
   justify-content:center;
   cursor:pointer;
-  transition:all 0.2s ease;
-  box-shadow:var(--shadow-sm);
+  box-shadow:0 2px 8px rgba(0,0,0,0.3);
+  transition:all 0.15s ease;
 }
 
-.card-icon-btn:hover{
-  background:rgba(30,58,138,0.08);
-  transform:scale(1.08);
+.team-card-icon-btn:hover{
+  background:#fff;
+  transform:scale(1.1);
 }
 
-.team-card{
-  padding-top:24px;
+.team-card-icon-btn.danger:hover{
+  background:#ef4444;
+  color:#fff;
+}
+
+.team-card-banner{
+  width:100%;
+  height:72px;
+  flex-shrink:0;
 }
 
 .team-card-crest{
-  width:56px;
-  height:56px;
-  border-radius:10px;
-  margin-bottom:8px;
+  width:82px;
+  height:82px;
+  border-radius:50%;
+  margin-top:-41px;
+  margin-bottom:12px;
   overflow:hidden;
   background:#fff;
-  border:1px solid rgba(0,0,0,0.06);
-}
-
-.team-card-crest img{
-  width:100%;
-  height:100%;
-  object-fit:contain;
-  padding:4px;
-  display:block;
+  border:4px solid #fff;
+  box-shadow:var(--shadow-md);
+  flex-shrink:0;
 }
 
 .team-card-crest-placeholder{
@@ -168,7 +184,17 @@ main{padding:32px 24px;flex:1}
   justify-content:center;
   background:rgba(30,58,138,0.08);
   color:var(--green-dark);
-  border-radius:10px;
+  border-radius:50%;
+}
+
+.team-card h3{
+  padding:0 18px;
+}
+
+.team-card > p.small{
+  padding:0 18px;
+  margin-bottom:22px;
+  color:var(--text-light);
 }
 
 .crest-upload-row{
@@ -428,9 +454,9 @@ main{padding:32px 24px;flex:1}
   width:100%;
   height:100%;
   object-fit:contain;
-  padding:4px;
+  padding:6px;
   margin-bottom:0;
-  border-radius:0;
+  border-radius:50%;
 }
 
 .card h3{
