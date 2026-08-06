@@ -69,23 +69,6 @@ create table if not exists players (
   created_at timestamp with time zone default timezone('utc', now())
 );
 
--- Historical player career stats (manual club totals)
-create table if not exists player_career_stats (
-  id uuid primary key default gen_random_uuid(),
-  team_id uuid references teams(id) on delete cascade,
-  player_id uuid references players(id) on delete cascade unique,
-  matches_played integer default 0,
-  goals integer default 0,
-  shots_on_goal integer default 0,
-  assists integer default 0,
-  shots_out integer default 0,
-  yellow_cards integer default 0,
-  red_cards integer default 0,
-  minutes_played integer default 0,
-  saves integer default 0,
-  updated_at timestamp with time zone default timezone('utc', now())
-);
-
 -- Matches table
 create table if not exists matches (
   id uuid primary key default gen_random_uuid(),
@@ -100,6 +83,7 @@ create table if not exists matches (
   home_goals integer,
   away_goals integer,
   ended_at timestamp with time zone,
+  called_up_players jsonb,
   created_at timestamp with time zone default timezone('utc', now())
 );
 
@@ -146,7 +130,6 @@ create table if not exists on_field_players (
 
 -- Indexes for new tables
 create index if not exists idx_players_team on players(team_id);
-create index if not exists idx_player_career_team on player_career_stats(team_id);
 create index if not exists idx_matches_team on matches(team_id);
 create index if not exists idx_match_player_stats_match on match_player_stats(match_id);
 create index if not exists idx_match_player_stats_player on match_player_stats(player_id);

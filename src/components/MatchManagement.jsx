@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react'
 import { api } from '../lib/api'
 import { exportMatchToPdf } from '../lib/pdfMatchExport'
-import { ArrowLeftIcon, TrashIcon, DownloadIcon } from './Icons'
+import ConvocatoriaModal from './ConvocatoriaModal'
+import ConfirmModal from './ConfirmModal'
+import { ArrowLeftIcon, TrashIcon, DownloadIcon, UsersIcon } from './Icons'
 
 export default function MatchManagement({ teamId, team, players, onSelectMatch, onClose }) {
   const [matches, setMatches] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [exportingId, setExportingId] = useState(null)
+  const [convocatoriaFor, setConvocatoriaFor] = useState(null)
+  const [confirmDeleteFor, setConfirmDeleteFor] = useState(null)
   const [formData, setFormData] = useState({
     rival_team_name: '',
     match_date: '',
@@ -42,11 +46,11 @@ export default function MatchManagement({ teamId, team, players, onSelectMatch, 
     loadMatches()
   }
 
-  const handleDeleteMatch = async (matchId) => {
-    if (confirm('¿Eliminar partido?')) {
-      await api.deleteMatch(matchId)
-      loadMatches()
-    }
+  const handleDeleteMatch = async () => {
+    if (!confirmDeleteFor) return
+    await api.deleteMatch(confirmDeleteFor.id)
+    setConfirmDeleteFor(null)
+    loadMatches()
   }
 
   const handleExportMatch = async (match) => {
@@ -56,6 +60,11 @@ export default function MatchManagement({ teamId, team, players, onSelectMatch, 
     } finally {
       setExportingId(null)
     }
+  }
+
+  const handleConvocatoriaSaved = (updatedMatch) => {
+    setMatches((current) => current.map((m) => (m.id === updatedMatch.id ? updatedMatch : m)))
+    setConvocatoriaFor(null)
   }
 
   const formatDate = (dateStr) => {
@@ -158,8 +167,20 @@ export default function MatchManagement({ teamId, team, players, onSelectMatch, 
                   {match.jornada ? ` · Jornada ${match.jornada}` : ''}
                 </p>
                 {renderResult(match) && <p className="match-jornada">{renderResult(match)}</p>}
+                {match.status !== 'finished' && (
+                  <p className="match-jornada" style={{color: Array.isArray(match.called_up_players) ? 'var(--green-dark)' : '#999'}}>
+                    {Array.isArray(match.called_up_players)
+                      ? `${match.called_up_players.length} convocados`
+                      : 'Sin convocatoria'}
+                  </p>
+                )}
               </div>
               <div className="match-actions">
+                {match.status !== 'finished' && (
+                  <button className="btn btn-secondary" style={{marginTop:0}} onClick={() => setConvocatoriaFor(match)}>
+                    <UsersIcon size={13}/> Convocatoria
+                  </button>
+                )}
                 <button className="btn btn-secondary" style={{marginTop:0}} onClick={() => onSelectMatch(match)}>
                   {match.status === 'finished' ? 'Ver' : 'Registrar'}
                 </button>
@@ -168,7 +189,7 @@ export default function MatchManagement({ teamId, team, players, onSelectMatch, 
                     <DownloadIcon size={13}/> {exportingId === match.id ? 'Generando...' : 'Exportar PDF'}
                   </button>
                 )}
-                <button className="btn btn-danger" style={{marginTop:0}} onClick={() => handleDeleteMatch(match.id)}>
+                <button className="btn btn-danger" style={{marginTop:0}} onClick={() => setConfirmDeleteFor(match)}>
                   <TrashIcon size={13}/> Eliminar
                 </button>
               </div>
@@ -176,6 +197,24 @@ export default function MatchManagement({ teamId, team, players, onSelectMatch, 
           ))
         )}
       </div>
+
+      {convocatoriaFor && (
+        <ConvocatoriaModal
+          match={convocatoriaFor}
+          players={players}
+          onSaved={handleConvocatoriaSaved}
+          onCancel={() => setConvocatoriaFor(null)}
+        />
+      )}
+
+      {confirmDeleteFor && (
+        <ConfirmModal
+          title="Eliminar partido"
+          message={`¿Eliminar el partido contra "${confirmDeleteFor.rival_team_name}"? Se borrarán también sus estadísticas.`}
+          onConfirm={handleDeleteMatch}
+          onCancel={() => setConfirmDeleteFor(null)}
+        />
+      )}
     </div>
   )
 }

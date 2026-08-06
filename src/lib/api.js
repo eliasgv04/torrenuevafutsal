@@ -28,7 +28,6 @@ const LS_TEAMS = 'tf_teams'
 const LS_EXERCISES = 'tf_exercises'
 const LS_TRAININGS = 'tf_trainings'
 const LS_TRAINING_ITEMS = 'tf_training_items'
-const LS_PLAYER_CAREER_STATS = 'tf_player_career_stats'
 const LS_SUPABASE_PLAYERS_SYNCED = 'tf_supabase_players_synced_v1'
 
 let localPlayersSyncPromise = null
@@ -78,9 +77,8 @@ async function ensureLocalPlayersSynced(){
   localPlayersSyncPromise = (async () => {
     const localTeams = lsGet(LS_TEAMS)
     const localPlayers = lsGet('tf_players')
-    const localCareerStats = lsGet(LS_PLAYER_CAREER_STATS)
 
-    if(localTeams.length === 0 && localPlayers.length === 0 && localCareerStats.length === 0){
+    if(localTeams.length === 0 && localPlayers.length === 0){
       localStorage.setItem(LS_SUPABASE_PLAYERS_SYNCED, '1')
       return
     }
@@ -159,31 +157,6 @@ async function ensureLocalPlayersSynced(){
       if(error) throw error
       playerMap.set(localPlayer.id, data.id)
       cloudPlayers.push(data)
-    }
-
-    for(const localStat of localCareerStats){
-      const cloudPlayerId = playerMap.get(localStat.player_id)
-      if(!cloudPlayerId) continue
-
-      const cloudTeamId = teamMap.get(localStat.team_id)
-      const payload = {
-        team_id: cloudTeamId || localStat.team_id,
-        player_id: cloudPlayerId,
-        matches_played: localStat.matches_played ?? 0,
-        goals: localStat.goals ?? 0,
-        shots_on_goal: localStat.shots_on_goal ?? 0,
-        yellow_cards: localStat.yellow_cards ?? 0,
-        red_cards: localStat.red_cards ?? 0,
-        minutes_played: localStat.minutes_played ?? 0,
-        saves: localStat.saves ?? 0,
-        updated_at: localStat.updated_at || new Date().toISOString()
-      }
-
-      const { error } = await supabase
-        .from('player_career_stats')
-        .upsert(payload, { onConflict: 'player_id' })
-
-      if(error) throw error
     }
 
     localStorage.setItem(LS_SUPABASE_PLAYERS_SYNCED, '1')
@@ -670,65 +643,6 @@ export const api = {
     }
     const players = lsGet('tf_players')
     lsSet('tf_players', players.filter(p=>p.id!==playerId))
-    const careerStats = lsGet(LS_PLAYER_CAREER_STATS)
-    lsSet(LS_PLAYER_CAREER_STATS, careerStats.filter(s=>s.player_id!==playerId))
-  },
-
-  async getPlayerCareerStats(playerId){
-    try{
-      if(HAS_SUPABASE){
-        await ensureLocalPlayersSynced()
-        const { data, error } = await supabase
-          .from('player_career_stats')
-          .select('*')
-          .eq('player_id', playerId)
-          .maybeSingle()
-        if(error) throw error
-        return data || null
-      }
-    }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
-    }
-    return lsGet(LS_PLAYER_CAREER_STATS).find(s=>s.player_id===playerId) || null
-  },
-
-  async upsertPlayerCareerStats({team_id, player_id, matches_played, goals, shots_on_goal, assists, shots_out, yellow_cards, red_cards, minutes_played, saves}){
-    const payload = {
-      team_id,
-      player_id,
-      matches_played: matches_played ?? 0,
-      goals: goals ?? 0,
-      shots_on_goal: shots_on_goal ?? 0,
-      assists: assists ?? 0,
-      shots_out: shots_out ?? 0,
-      yellow_cards: yellow_cards ?? 0,
-      red_cards: red_cards ?? 0,
-      minutes_played: minutes_played ?? 0,
-      saves: saves ?? 0,
-      updated_at: new Date().toISOString()
-    }
-
-    try{
-      if(HAS_SUPABASE){
-        const { data, error } = await supabase
-          .from('player_career_stats')
-          .upsert(payload, {onConflict:'player_id'})
-          .select()
-          .single()
-        if(error) throw error
-        return data
-      }
-    }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
-    }
-
-    const stats = lsGet(LS_PLAYER_CAREER_STATS)
-    const idx = stats.findIndex(item=>item.player_id===player_id)
-    const record = { id: idx >= 0 ? stats[idx].id : uid(), ...payload }
-    if(idx >= 0) stats[idx] = record
-    else stats.push(record)
-    lsSet(LS_PLAYER_CAREER_STATS, stats)
-    return record
   },
 
   async getMatches(teamId){
@@ -851,6 +765,31 @@ export const api = {
     const idx = matches.findIndex(m=>m.id===match_id)
     if(idx>=0){
       matches[idx] = { ...matches[idx], notes }
+      lsSet('tf_matches', matches)
+      return matches[idx]
+    }
+    return null
+  },
+
+  async updateCalledUpPlayers({match_id, player_ids}){
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('matches')
+          .update({called_up_players: player_ids})
+          .eq('id', match_id)
+          .select()
+          .single()
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    const matches = lsGet('tf_matches')
+    const idx = matches.findIndex(m=>m.id===match_id)
+    if(idx>=0){
+      matches[idx] = { ...matches[idx], called_up_players: player_ids }
       lsSet('tf_matches', matches)
       return matches[idx]
     }
@@ -1011,48 +950,68 @@ export const api = {
     return onField[idx]
   },
 
+  // Full per-match stat history for a player (finished matches only), most
+  // recent first — used by the roster's player detail popup.
   async getPlayerMatches(playerId){
     try{
       if(HAS_SUPABASE){
         const { data, error } = await supabase
           .from('match_player_stats')
           .select(`
-            *,
+            goals, assists, shots_on_goal, shots_out, fouls, yellow_cards, red_cards, minutes_played, saves,
             matches:match_id(
               id,
               rival_team_name,
-              match_date
+              match_date,
+              is_home,
+              home_goals,
+              away_goals,
+              status
             )
           `)
           .eq('player_id', playerId)
           .order('match_date', {foreignTable:'matches', ascending:false})
         if(error) throw error
-        return data.map(d=>({
-          id: d.id,
-          rival_team_name: d.matches?.rival_team_name,
-          match_date: d.matches?.match_date,
-          goals: d.goals,
-          shots_on_goal: d.shots_on_goal,
-          yellow_cards: d.yellow_cards,
-          red_cards: d.red_cards,
-          saves: d.saves,
-          minutes_played: d.minutes_played
-        }))
+        return data
+          .filter(d => d.matches?.status === 'finished')
+          .map(d => ({
+            match_id: d.matches?.id,
+            rival_team_name: d.matches?.rival_team_name,
+            match_date: d.matches?.match_date,
+            is_home: d.matches?.is_home,
+            home_goals: d.matches?.home_goals,
+            away_goals: d.matches?.away_goals,
+            goals: d.goals,
+            assists: d.assists,
+            shots_on_goal: d.shots_on_goal,
+            shots_out: d.shots_out,
+            fouls: d.fouls,
+            yellow_cards: d.yellow_cards,
+            red_cards: d.red_cards,
+            saves: d.saves,
+            minutes_played: d.minutes_played
+          }))
       }
     }catch(e){
       console.error('Supabase error, falling back to localStorage:', e)
     }
     const playerStats = lsGet('tf_match_player_stats').filter(s=>s.player_id===playerId)
     const matches = lsGet('tf_matches')
-    return playerStats.map(stat=>{
-      const match = matches.find(m=>m.id===stat.match_id)
-      return {
-        ...stat,
-        match_id: stat.match_id,
-        rival_team_name: match?.rival_team_name,
-        match_date: match?.match_date
-      }
-    }).sort((a,b)=>new Date(b.match_date||0) - new Date(a.match_date||0))
+    return playerStats
+      .map(stat=>{
+        const match = matches.find(m=>m.id===stat.match_id)
+        return {
+          ...stat,
+          rival_team_name: match?.rival_team_name,
+          match_date: match?.match_date,
+          is_home: match?.is_home,
+          home_goals: match?.home_goals,
+          away_goals: match?.away_goals,
+          status: match?.status
+        }
+      })
+      .filter(s => s.status === 'finished')
+      .sort((a,b)=>new Date(b.match_date||0) - new Date(a.match_date||0))
   }
 }
 

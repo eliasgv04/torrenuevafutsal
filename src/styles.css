@@ -2110,6 +2110,95 @@ label{
   border-radius:10px;
 }
 
+/* ===== Player detail: match-based stats ===== */
+.player-totals-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(70px, 1fr));
+  gap:8px;
+}
+.player-total-stat{
+  background:rgba(248,252,249,0.95);
+  border:1px solid rgba(30,58,138,0.14);
+  border-radius:10px;
+  padding:10px 6px;
+  text-align:center;
+}
+.player-total-stat span{
+  display:block;
+  font-family:'Poppins', sans-serif;
+  font-weight:700;
+  font-size:17px;
+  color:var(--green-dark);
+}
+.player-total-stat label{
+  font-size:10px;
+  color:var(--text-light);
+  text-transform:uppercase;
+}
+
+.player-match-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.player-match-card{
+  border:1px solid rgba(30,58,138,0.14);
+  border-radius:12px;
+  padding:12px 14px;
+  background:rgba(248,252,249,0.6);
+}
+.player-match-card-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  margin-bottom:10px;
+}
+.player-match-rival{
+  font-family:'Poppins', sans-serif;
+  font-weight:700;
+  font-size:14px;
+  color:var(--green-dark);
+}
+.player-match-date{
+  font-size:11px;
+  color:var(--text-light);
+  margin-top:2px;
+  text-transform:capitalize;
+}
+.player-match-result{
+  flex-shrink:0;
+  font-family:'Poppins', sans-serif;
+  font-weight:700;
+  font-size:13px;
+  color:#fff;
+  padding:4px 12px;
+  border-radius:20px;
+}
+.player-match-stats-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(48px, 1fr));
+  gap:6px;
+}
+.player-match-stat{
+  text-align:center;
+  background:#ffffff;
+  border-radius:8px;
+  padding:6px 2px;
+}
+.player-match-stat-value{
+  font-family:'Poppins', sans-serif;
+  font-weight:700;
+  font-size:14px;
+  color:var(--green-dark);
+}
+.player-match-stat-label{
+  font-size:8.5px;
+  color:var(--text-light);
+  text-transform:uppercase;
+  margin-top:2px;
+}
+
 .matches-list{
   display:flex;
   flex-direction:column;
@@ -2547,6 +2636,29 @@ label{
 }
 .planner-attend-item input{ width:auto; margin:0; }
 .planner-attend-text{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.callup-list{
+  display:grid;
+  gap:6px;
+  max-height:340px;
+  overflow:auto;
+  padding:8px;
+  border:1px solid rgba(30,58,138,0.18);
+  border-radius:8px;
+  background:rgba(255,255,255,0.6);
+}
+.callup-item{
+  display:flex; align-items:center; gap:8px;
+  margin:0; padding:6px 8px;
+  border-radius:8px;
+  font-size:13px; font-weight:500;
+  cursor:pointer;
+  transition:background 0.15s ease;
+}
+.callup-item:hover{ background:rgba(37,99,235,0.06); }
+.callup-item input{ width:auto; margin:0; flex-shrink:0; }
+.callup-dorsal{ font-weight:700; color:var(--green-dark); flex-shrink:0; min-width:26px; }
+.callup-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
 .planner-teams-grid{
   display:grid;

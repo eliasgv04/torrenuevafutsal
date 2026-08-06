@@ -358,7 +358,12 @@ export default function MatchTracker({ match, teamId, teamName, team, players, o
 
   // ── Field management ─────────────────────────────────────────────────
   const currentOnField = onFieldPlayers.filter(o => o.exit_minute === null && players.some(p => p.id === o.player_id))
-  const benchPlayers   = players.filter(p => !currentOnField.find(o => o.player_id === p.id))
+  // Bench only offers convocados (if a convocatoria was set for this match);
+  // on-field lookups still use the full roster so nothing already tracked
+  // ever disappears just because they're outside the call-up list.
+  const calledUpIds   = Array.isArray(match.called_up_players) ? new Set(match.called_up_players) : null
+  const eligiblePlayers = calledUpIds ? players.filter(p => calledUpIds.has(p.id)) : players
+  const benchPlayers   = eligiblePlayers.filter(p => !currentOnField.find(o => o.player_id === p.id))
 
   // Read-only summary: every player who has a stats row, sorted by dorsal
   const finishedPlayerStats = Object.entries(playerStats)

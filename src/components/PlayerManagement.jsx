@@ -1,12 +1,38 @@
 import { useState, useEffect } from 'react'
 import { api } from '../lib/api'
+import ConfirmModal from './ConfirmModal'
 import { ArrowLeftIcon, TrashIcon } from './Icons'
+
+function fmtMins(secs){
+  const s = Math.max(0, Number(secs) || 0)
+  const m = Math.floor(s / 60), r = s % 60
+  return `${m}:${String(r).padStart(2, '0')}`
+}
+
+const EMPTY_TOTALS = { matches:0, goals:0, assists:0, shots_on_goal:0, shots_out:0, fouls:0, yellow_cards:0, red_cards:0, saves:0, minutes_played:0 }
+
+function sumMatches(matches){
+  return matches.reduce((acc, m) => ({
+    matches: acc.matches + 1,
+    goals: acc.goals + (m.goals || 0),
+    assists: acc.assists + (m.assists || 0),
+    shots_on_goal: acc.shots_on_goal + (m.shots_on_goal || 0),
+    shots_out: acc.shots_out + (m.shots_out || 0),
+    fouls: acc.fouls + (m.fouls || 0),
+    yellow_cards: acc.yellow_cards + (m.yellow_cards || 0),
+    red_cards: acc.red_cards + (m.red_cards || 0),
+    saves: acc.saves + (m.saves || 0),
+    minutes_played: acc.minutes_played + (m.minutes_played || 0),
+  }), { ...EMPTY_TOTALS })
+}
 
 export default function PlayerManagement({ teamId, onClose }) {
   const [players, setPlayers] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [detailPlayer, setDetailPlayer] = useState(null)
-  const [careerStatsMap, setCareerStatsMap] = useState({})
+  const [playerMatchesMap, setPlayerMatchesMap] = useState({})
+  const [loadingMatches, setLoadingMatches] = useState(false)
+  const [confirmDeleteFor, setConfirmDeleteFor] = useState(null)
   const [formData, setFormData] = useState({ name: '', surname: '', dorsal: '', position: 'Portero' })
 
   useEffect(() => {
@@ -35,42 +61,26 @@ export default function PlayerManagement({ teamId, onClose }) {
     loadPlayers()
   }
 
-  const handleDeletePlayer = async (playerId) => {
-    if (confirm('¿Eliminar jugador?')) {
-      await api.deletePlayer(playerId)
-      if (detailPlayer?.id === playerId) setDetailPlayer(null)
-      loadPlayers()
-    }
+  const handleDeletePlayer = async () => {
+    if (!confirmDeleteFor) return
+    const playerId = confirmDeleteFor.id
+    await api.deletePlayer(playerId)
+    if (detailPlayer?.id === playerId) setDetailPlayer(null)
+    setConfirmDeleteFor(null)
+    loadPlayers()
   }
 
   const openDetail = async (player) => {
     setDetailPlayer(player)
-    if (!careerStatsMap[player.id]) {
-      const stats = await api.getPlayerCareerStats(player.id)
-      setCareerStatsMap((prev) => ({ ...prev, [player.id]: stats || { matches_played: 0, goals: 0 } }))
+    if (!playerMatchesMap[player.id]) {
+      setLoadingMatches(true)
+      try {
+        const matches = await api.getPlayerMatches(player.id)
+        setPlayerMatchesMap((prev) => ({ ...prev, [player.id]: matches || [] }))
+      } finally {
+        setLoadingMatches(false)
+      }
     }
-  }
-
-  const updateCareerStatField = (player, field, value) => {
-    setCareerStatsMap((prev) => ({
-      ...prev,
-      [player.id]: { ...(prev[player.id] || { matches_played: 0, goals: 0 }), [field]: value }
-    }))
-  }
-
-  const saveCareerStats = async (player) => {
-    const current = careerStatsMap[player.id] || { matches_played: 0, goals: 0 }
-    const payload = {
-      matches_played: parseInt(current.matches_played) || 0,
-      goals: parseInt(current.goals) || 0
-    }
-    setCareerStatsMap((prev) => ({ ...prev, [player.id]: payload }))
-    await api.upsertPlayerCareerStats({
-      team_id: player.team_id,
-      player_id: player.id,
-      matches_played: payload.matches_played,
-      goals: payload.goals
-    })
   }
 
   const positions = ['Portero', 'Cierre', 'Ala Diestro', 'Ala Zurdo', 'Pivot']
@@ -82,7 +92,9 @@ export default function PlayerManagement({ teamId, onClose }) {
     'Pivot': '#A855F7'
   }
 
-  const detailStats = detailPlayer ? (careerStatsMap[detailPlayer.id] || { matches_played: 0, goals: 0 }) : null
+  const detailMatches = detailPlayer ? (playerMatchesMap[detailPlayer.id] || []) : []
+  const detailTotals = sumMatches(detailMatches)
+  const recentMatches = detailMatches.slice(0, 3)
 
   const sortedPlayers = [...players].sort((a, b) => {
     const posDiff = positions.indexOf(a.position) - positions.indexOf(b.position)
@@ -174,7 +186,7 @@ export default function PlayerManagement({ teamId, onClose }) {
 
       {detailPlayer && (
         <div className="modal-overlay" onClick={() => setDetailPlayer(null)}>
-          <div className="modal-content" style={{maxWidth:420}} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" style={{maxWidth:640}} onClick={(e) => e.stopPropagation()}>
             <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:20}}>
               <span className="player-square-dorsal" style={{ background:positionColors[detailPlayer.position], width:64, height:64, borderRadius:14, fontSize:26 }}>
                 {detailPlayer.dorsal}
@@ -187,38 +199,79 @@ export default function PlayerManagement({ teamId, onClose }) {
               </div>
             </div>
 
-            <p className="player-stats-note">Estadísticas históricas del club (manuales)</p>
-            <div className="career-stats-grid">
-              <label className="career-stat-card">
-                <span>Partidos</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={detailStats.matches_played ?? 0}
-                  onChange={(e) => updateCareerStatField(detailPlayer, 'matches_played', e.target.value)}
-                  onBlur={() => saveCareerStats(detailPlayer)}
-                />
-              </label>
-              <label className="career-stat-card">
-                <span>Goles</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={detailStats.goals ?? 0}
-                  onChange={(e) => updateCareerStatField(detailPlayer, 'goals', e.target.value)}
-                  onBlur={() => saveCareerStats(detailPlayer)}
-                />
-              </label>
-            </div>
+            {loadingMatches && !playerMatchesMap[detailPlayer.id] ? (
+              <p className="player-stats-note">Cargando estadísticas...</p>
+            ) : detailMatches.length === 0 ? (
+              <p className="player-stats-note">Sin partidos finalizados registrados todavía</p>
+            ) : (
+              <>
+                <p className="player-stats-note">Total en {detailTotals.matches} partido{detailTotals.matches === 1 ? '' : 's'}</p>
+                <div className="player-totals-grid">
+                  <div className="player-total-stat"><span>{detailTotals.goals}</span><label>Goles</label></div>
+                  <div className="player-total-stat"><span>{detailTotals.assists}</span><label>Asist.</label></div>
+                  <div className="player-total-stat"><span>{detailTotals.shots_on_goal}</span><label>T. puerta</label></div>
+                  <div className="player-total-stat"><span>{detailTotals.shots_out}</span><label>T. fuera</label></div>
+                  <div className="player-total-stat"><span>{detailTotals.fouls}</span><label>Faltas</label></div>
+                  <div className="player-total-stat"><span>{detailTotals.yellow_cards}</span><label>Amarillas</label></div>
+                  <div className="player-total-stat"><span>{detailTotals.red_cards}</span><label>Rojas</label></div>
+                  <div className="player-total-stat"><span>{detailTotals.saves}</span><label>Paradas</label></div>
+                  <div className="player-total-stat"><span>{fmtMins(detailTotals.minutes_played)}</span><label>Minutos</label></div>
+                </div>
+
+                <p className="player-stats-note" style={{marginTop:20}}>Últimos partidos</p>
+                <div className="player-match-list">
+                  {recentMatches.map((m) => {
+                    const isHome = m.is_home !== false
+                    const ourGoals = isHome ? (m.home_goals ?? 0) : (m.away_goals ?? 0)
+                    const rivGoals = isHome ? (m.away_goals ?? 0) : (m.home_goals ?? 0)
+                    const result = ourGoals > rivGoals ? 'W' : ourGoals < rivGoals ? 'L' : 'D'
+                    const resultColor = result === 'W' ? '#22c55e' : result === 'L' ? '#ef4444' : '#f59e0b'
+                    return (
+                      <div key={m.match_id} className="player-match-card">
+                        <div className="player-match-card-head">
+                          <div>
+                            <div className="player-match-rival">vs {m.rival_team_name}</div>
+                            <div className="player-match-date">
+                              {m.match_date ? new Date(m.match_date).toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' }) : ''}
+                            </div>
+                          </div>
+                          <span className="player-match-result" style={{ background:resultColor }}>{ourGoals}-{rivGoals}</span>
+                        </div>
+                        <div className="player-match-stats-grid">
+                          <div className="player-match-stat"><div className="player-match-stat-value">{m.goals ?? 0}</div><div className="player-match-stat-label">Goles</div></div>
+                          <div className="player-match-stat"><div className="player-match-stat-value">{m.assists ?? 0}</div><div className="player-match-stat-label">Asist.</div></div>
+                          <div className="player-match-stat"><div className="player-match-stat-value">{m.shots_on_goal ?? 0}</div><div className="player-match-stat-label">T+</div></div>
+                          <div className="player-match-stat"><div className="player-match-stat-value">{m.shots_out ?? 0}</div><div className="player-match-stat-label">T-</div></div>
+                          <div className="player-match-stat"><div className="player-match-stat-value">{m.fouls ?? 0}</div><div className="player-match-stat-label">Faltas</div></div>
+                          <div className="player-match-stat"><div className="player-match-stat-value">{m.yellow_cards ?? 0}</div><div className="player-match-stat-label">TA</div></div>
+                          <div className="player-match-stat"><div className="player-match-stat-value">{m.red_cards ?? 0}</div><div className="player-match-stat-label">TR</div></div>
+                          <div className="player-match-stat"><div className="player-match-stat-value">{m.saves ?? 0}</div><div className="player-match-stat-label">Paradas</div></div>
+                          <div className="player-match-stat"><div className="player-match-stat-value">{fmtMins(m.minutes_played)}</div><div className="player-match-stat-label">Min</div></div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )}
 
             <div className="modal-buttons" style={{marginTop:16}}>
-              <button className="btn btn-danger" style={{flex:'none', padding:'8px 14px', fontSize:13}} onClick={() => handleDeletePlayer(detailPlayer.id)}>
+              <button className="btn btn-danger" style={{flex:'none', padding:'8px 14px', fontSize:13}} onClick={() => setConfirmDeleteFor(detailPlayer)}>
                 <TrashIcon size={13}/> Eliminar
               </button>
               <button className="btn btn-cancel" style={{flex:'none', padding:'8px 14px', fontSize:13, marginLeft:'auto'}} onClick={() => setDetailPlayer(null)}>Cerrar</button>
             </div>
           </div>
         </div>
+      )}
+
+      {confirmDeleteFor && (
+        <ConfirmModal
+          title="Eliminar jugador"
+          message={`¿Eliminar a ${confirmDeleteFor.name} ${confirmDeleteFor.surname}? Se borrarán también sus estadísticas de partidos.`}
+          onConfirm={handleDeletePlayer}
+          onCancel={() => setConfirmDeleteFor(null)}
+        />
       )}
     </div>
   )

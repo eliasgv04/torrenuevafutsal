@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { api } from '../lib/api'
 import { ArrowLeftIcon, XIcon } from './Icons'
 
-const PIZARRA_URL = import.meta.env.BASE_URL + 'pizarra.jpg'
+const PIZARRA_URL = import.meta.env.BASE_URL + 'futsalkit-pizarra.jpg'
 
 const RIVAL_PRESETS = [
   { id: 'rv-1', name: 'Portero',     position: 'Portero',     dorsal: null, short: 'Por',   initX: 93, initY: 50 },
