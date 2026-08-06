@@ -5,7 +5,6 @@ import { exportTrainingToPdf } from "../lib/pdfExport";
 import { exportTrainingFichaToPdf } from "../lib/pdfFicha";
 import { isFichaTraining } from "../lib/trainingFicha";
 import CreateExerciseModal from "./CreateExerciseModal";
-import RegisterModal from "./RegisterModal";
 import ConfirmModal from "./ConfirmModal";
 import ExerciseDetailModal from "./ExerciseDetailModal";
 import TrainingPlannerModal from "./TrainingPlannerModal";
@@ -25,13 +24,11 @@ export default function TeamPage({ team, onBack }) {
   const [exercises, setExercises] = useState([]);
   const [creating, setCreating] = useState(false);
   const [editingExercise, setEditingExercise] = useState(null);
-  const [registerFor, setRegisterFor] = useState(null);
   const [confirmFor, setConfirmFor] = useState(null);
   const [detailFor, setDetailFor] = useState(null);
   const [creatingTraining, setCreatingTraining] = useState(false);
   const [editingTraining, setEditingTraining] = useState(null);
   const [confirmDeleteTraining, setConfirmDeleteTraining] = useState(null);
-  const [statsLoading, setStatsLoading] = useState(false);
   const [exercisesLoading, setExercisesLoading] = useState(true);
   const [trainings, setTrainings] = useState([]);
   const [players, setPlayers] = useState([]);
@@ -69,12 +66,6 @@ export default function TeamPage({ team, onBack }) {
     api.getExercises(team.id).then(exs => {
       setExercises(exs);
       setExercisesLoading(false);
-      if (exs.length === 0) return;
-      setStatsLoading(true);
-      loadExerciseWithRecords(exs)
-        .then(enriched => setExercises(enriched))
-        .catch(err => console.error('Error cargando estadísticas:', err))
-        .finally(() => setStatsLoading(false));
     }).catch(() => setExercisesLoading(false));
     api.getPlayers(team.id).then(setPlayers);
     loadTrainingHistory(team.id);
@@ -101,45 +92,6 @@ export default function TeamPage({ team, onBack }) {
       current.map((item) => (item.id === editingExercise.id ? updated : item)),
     );
     setEditingExercise(null);
-  }
-
-  async function loadExerciseWithRecords(exercises) {
-    if (!exercises.length) return exercises;
-
-    // Single batch query instead of one query per exercise (avoids N+1 timeout with large datasets)
-    const exerciseIds = exercises.map((ex) => ex.id);
-    const allRecords = await api.getRecordsByExerciseIds(exerciseIds);
-
-    // Group records by exercise_id (already ordered desc by occurred_at)
-    const recordsByEx = {};
-    allRecords.forEach((r) => {
-      if (!recordsByEx[r.exercise_id]) recordsByEx[r.exercise_id] = [];
-      recordsByEx[r.exercise_id].push(r);
-    });
-
-    return exercises.map((ex) => {
-      const records = recordsByEx[ex.id] || [];
-      const totalCount = records.reduce((sum, r) => sum + (r.count || 0), 0);
-      const avgEff =
-        records.length > 0
-          ? records.reduce((sum, r) => sum + (r.effectiveness || 0), 0) / records.length
-          : 0;
-      const lastRecord = records[0];
-      return {
-        ...ex,
-        totalCount,
-        effectivenessAvg: avgEff,
-        lastDate: lastRecord?.occurred_at,
-        lastDimensions: lastRecord?.dimensions,
-      };
-    });
-  }
-
-  async function onSaveRecord(data) {
-    await api.createRecord({ exercise_id: registerFor.id, ...data });
-    const updated = await loadExerciseWithRecords(exercises);
-    setExercises(updated);
-    setRegisterFor(null);
   }
 
   async function loadTrainingHistory(teamId) {
@@ -294,9 +246,36 @@ export default function TeamPage({ team, onBack }) {
     setExercises((current) =>
       current.filter((item) => item.id !== confirmFor.id),
     );
-    if (registerFor?.id === confirmFor.id) setRegisterFor(null);
     setConfirmFor(null);
   }
+
+  // "Veces" an exercise has been used = how many trainings included it, derived
+  // straight from the already-loaded training history (no manual registration).
+  const exerciseUsage = useMemo(() => {
+    const usage = {};
+    trainings.forEach((training) => {
+      (training.items || []).forEach((item) => {
+        if (!item.exercise_id) return;
+        const current = usage[item.exercise_id] || { totalCount: 0, lastDate: null, lastDimensions: null };
+        current.totalCount += 1;
+        if (!current.lastDate || new Date(training.training_date) > new Date(current.lastDate)) {
+          current.lastDate = training.training_date;
+          current.lastDimensions = item.dimensions;
+        }
+        usage[item.exercise_id] = current;
+      });
+    });
+    return usage;
+  }, [trainings]);
+
+  const enrichedExercises = useMemo(
+    () =>
+      exercises.map((ex) => ({
+        ...ex,
+        ...(exerciseUsage[ex.id] || { totalCount: 0, lastDate: null, lastDimensions: null }),
+      })),
+    [exercises, exerciseUsage],
+  );
 
   const categories = useMemo(
     () => [
@@ -310,7 +289,7 @@ export default function TeamPage({ team, onBack }) {
 
   const filteredExercises = useMemo(() => {
     const search = searchText.trim().toLowerCase();
-    return exercises.filter((ex) => {
+    return enrichedExercises.filter((ex) => {
       const textOk =
         !search ||
         `${ex.name} ${ex.objective || ""} ${ex.category || ""}`
@@ -327,7 +306,7 @@ export default function TeamPage({ team, onBack }) {
       const dateOk = (!exerciseDateFrom && !exerciseDateTo) || (fromOk && toOk);
       return textOk && categoryOk && dateOk;
     });
-  }, [exercises, searchText, categoryFilter, exerciseDateFrom, exerciseDateTo]);
+  }, [enrichedExercises, searchText, categoryFilter, exerciseDateFrom, exerciseDateTo]);
 
   useEffect(() => {
     setVisibleCount(EXERCISES_PAGE_SIZE);
@@ -486,9 +465,6 @@ export default function TeamPage({ team, onBack }) {
                   ? `${visibleExercises.length} de ${filteredExercises.length} ejercicios`
                   : `${filteredExercises.length} ejercicios visibles`}
               </span>
-              {statsLoading && (
-                <span style={{color:'#888', fontSize:12}}>Cargando estadísticas…</span>
-              )}
             </div>
           )}
 
@@ -520,7 +496,6 @@ export default function TeamPage({ team, onBack }) {
                   <ExerciseCard
                     key={e.id}
                     exercise={e}
-                    onAddRecord={() => setRegisterFor(e)}
                     onDelete={() => onDeleteExercise(e)}
                     onOpenDetail={() => setDetailFor(e)}
                     onEdit={() => setEditingExercise(e)}
@@ -638,17 +613,10 @@ export default function TeamPage({ team, onBack }) {
           onCancel={() => setConfirmDeleteTraining(null)}
         />
       )}
-      {registerFor && (
-        <RegisterModal
-          exercise={registerFor}
-          onSave={onSaveRecord}
-          onCancel={() => setRegisterFor(null)}
-        />
-      )}
       {confirmFor && (
         <ConfirmModal
           title={`Eliminar ${confirmFor.name}`}
-          message={`Eliminar el ejercicio "${confirmFor.name}"? Se borrarán también sus registros.`}
+          message={`¿Eliminar el ejercicio "${confirmFor.name}"?`}
           onConfirm={doDeleteExercise}
           onCancel={() => setConfirmFor(null)}
         />
@@ -658,8 +626,8 @@ export default function TeamPage({ team, onBack }) {
           title={selectedIds.size === 1 ? "Eliminar ejercicio" : `Eliminar ${selectedIds.size} ejercicios`}
           message={
             selectedIds.size === 1
-              ? "¿Eliminar el ejercicio seleccionado? Se borrarán también sus registros."
-              : `¿Eliminar los ${selectedIds.size} ejercicios seleccionados? Se borrarán también sus registros.`
+              ? "¿Eliminar el ejercicio seleccionado?"
+              : `¿Eliminar los ${selectedIds.size} ejercicios seleccionados?`
           }
           onConfirm={deleteSelectedExercises}
           onCancel={() => !bulkDeleting && setConfirmBulkDelete(false)}
@@ -668,6 +636,7 @@ export default function TeamPage({ team, onBack }) {
       {detailFor && (
         <ExerciseDetailModal
           exercise={detailFor}
+          trainings={trainings}
           onClose={() => setDetailFor(null)}
           onEdit={() => {
             setDetailFor(null);

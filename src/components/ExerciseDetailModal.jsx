@@ -1,13 +1,15 @@
-import React, {useEffect, useState} from 'react'
-import { api } from '../lib/api'
+import React, {useMemo} from 'react'
 
-export default function ExerciseDetailModal({exercise, onClose, onEdit}){
-  const [records,setRecords] = useState([])
-
-  useEffect(()=>{
-    if(!exercise) return
-    api.getRecords(exercise.id).then(setRecords)
-  },[exercise])
+export default function ExerciseDetailModal({exercise, trainings, onClose, onEdit}){
+  const usedIn = useMemo(() => {
+    return (trainings || [])
+      .map((training) => {
+        const item = (training.items || []).find((i) => i.exercise_id === exercise.id)
+        return item ? { id: training.id, date: training.training_date, dimensions: item.dimensions } : null
+      })
+      .filter(Boolean)
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+  }, [trainings, exercise.id])
 
   return (
     <div className="modal-overlay">
@@ -22,15 +24,14 @@ export default function ExerciseDetailModal({exercise, onClose, onEdit}){
         <p className="small">{exercise.objective}</p>
         {exercise.photo_url && <img src={exercise.photo_url} alt={exercise.name} style={{width:'100%',borderRadius:10,objectFit:'cover',marginTop:12,maxHeight:360}} />}
         <div style={{marginTop:16}}>
-          <h4>Registros ({records.length})</h4>
-          {records.length === 0 ? (
-            <p className="small">No hay registros para este ejercicio</p>
+          <h4>Usado en entrenamientos ({usedIn.length})</h4>
+          {usedIn.length === 0 ? (
+            <p className="small">Este ejercicio todavía no se ha incluido en ningún entrenamiento</p>
           ) : (
             <ul style={{paddingLeft:18}}>
-              {records.map(r => (
-                <li key={r.id} style={{marginBottom:8}}>
-                  <strong>{new Date(r.occurred_at).toLocaleDateString('es-ES')}</strong> — {r.count} veces — {r.effectiveness}% {r.dimensions ? `— ${r.dimensions}` : ''}
-                  {r.notes && <div className="small" style={{marginTop:4}}>{r.notes}</div>}
+              {usedIn.map(t => (
+                <li key={t.id} style={{marginBottom:8}}>
+                  <strong>{new Date(t.date).toLocaleDateString('es-ES')}</strong>{t.dimensions ? ` — ${t.dimensions}` : ''}
                 </li>
               ))}
             </ul>

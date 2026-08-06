@@ -24,18 +24,6 @@ create table if not exists exercises (
 create unique index if not exists idx_exercises_team_name_unique
   on exercises (team_id, lower(trim(name)));
 
--- Exercise records (registrations)
-create table if not exists exercise_records (
-  id uuid primary key default gen_random_uuid(),
-  exercise_id uuid references exercises(id) on delete cascade,
-  occurred_at date not null,
-  count integer default 1,
-  effectiveness integer,
-  dimensions text,
-  notes text,
-  created_at timestamp with time zone default timezone('utc', now())
-);
-
 -- Trainings table
 create table if not exists trainings (
   id uuid primary key default gen_random_uuid(),
@@ -65,7 +53,6 @@ create table if not exists training_exercises (
 
 -- Indexes for faster lookups
 create index if not exists idx_exercises_team on exercises(team_id);
-create index if not exists idx_records_exercise on exercise_records(exercise_id);
 create index if not exists idx_trainings_team on trainings(team_id);
 create index if not exists idx_training_exercises_training on training_exercises(training_id);
 

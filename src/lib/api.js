@@ -26,7 +26,6 @@ async function withRetry(fn, attempts = 3, baseDelayMs = 2000) {
 // LocalStorage keys
 const LS_TEAMS = 'tf_teams'
 const LS_EXERCISES = 'tf_exercises'
-const LS_RECORDS = 'tf_records'
 const LS_TRAININGS = 'tf_trainings'
 const LS_TRAINING_ITEMS = 'tf_training_items'
 const LS_PLAYER_CAREER_STATS = 'tf_player_career_stats'
@@ -273,14 +272,11 @@ export const api = {
     }
     const teams = lsGet(LS_TEAMS).filter(team => team.id !== teamId)
     const exercises = lsGet(LS_EXERCISES).filter(exercise => exercise.team_id !== teamId)
-    const exerciseIds = new Set(lsGet(LS_EXERCISES).filter(exercise => exercise.team_id === teamId).map(exercise => exercise.id))
-    const records = lsGet(LS_RECORDS).filter(record => !exerciseIds.has(record.exercise_id))
     const trainings = lsGet(LS_TRAININGS).filter(training => training.team_id !== teamId)
     const trainingIds = new Set(lsGet(LS_TRAININGS).filter(training => training.team_id === teamId).map(training => training.id))
     const trainingItems = lsGet(LS_TRAINING_ITEMS).filter(item => !trainingIds.has(item.training_id))
     lsSet(LS_TEAMS, teams)
     lsSet(LS_EXERCISES, exercises)
-    lsSet(LS_RECORDS, records)
     lsSet(LS_TRAININGS, trainings)
     lsSet(LS_TRAINING_ITEMS, trainingItems)
   },
@@ -360,73 +356,9 @@ export const api = {
       console.error('Supabase error, falling back to localStorage:', e)
     }
     const exercises = lsGet(LS_EXERCISES).filter(exercise => exercise.id !== exerciseId)
-    const records = lsGet(LS_RECORDS).filter(record => record.exercise_id !== exerciseId)
     const trainingItems = lsGet(LS_TRAINING_ITEMS).filter(item => item.exercise_id !== exerciseId)
     lsSet(LS_EXERCISES, exercises)
-    lsSet(LS_RECORDS, records)
     lsSet(LS_TRAINING_ITEMS, trainingItems)
-  },
-
-  async getRecords(exerciseId){
-    try{
-      if(HAS_SUPABASE){
-        const { data, error } = await supabase.from('exercise_records').select('*').eq('exercise_id', exerciseId).order('occurred_at', {ascending:false})
-        if(error) throw error
-        return data
-      }
-    }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
-    }
-    return lsGet(LS_RECORDS).filter(r=>r.exercise_id===exerciseId)
-  },
-
-  // Fetch all records for multiple exercises split into small parallel chunks.
-  // Chunking avoids long .in() queries that can hit Supabase statement_timeout.
-  async getRecordsByExerciseIds(exerciseIds){
-    if(!exerciseIds || exerciseIds.length === 0) return []
-    try{
-      if(HAS_SUPABASE){
-        const CHUNK = 25
-        const chunks = []
-        for(let i = 0; i < exerciseIds.length; i += CHUNK)
-          chunks.push(exerciseIds.slice(i, i + CHUNK))
-
-        const results = await Promise.all(chunks.map(chunk =>
-          withRetry(() =>
-            supabase.from('exercise_records')
-              .select('exercise_id,occurred_at,count,effectiveness,dimensions,notes')
-              .in('exercise_id', chunk)
-              .order('occurred_at', {ascending:false})
-              .then(r => { if(r.error) throw r.error; return r.data })
-          )
-        ))
-        return results.flat()
-      }
-    }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
-    }
-    const idSet = new Set(exerciseIds)
-    return lsGet(LS_RECORDS)
-      .filter(r => idSet.has(r.exercise_id))
-      .sort((a,b) => new Date(b.occurred_at) - new Date(a.occurred_at))
-  },
-
-  async createRecord({exercise_id, occurred_at, count, effectiveness, dimensions, notes}){
-    const recordDate = occurred_at || new Date().toISOString().slice(0, 10)
-    try{
-      if(HAS_SUPABASE){
-        const { data, error } = await supabase.from('exercise_records').insert({exercise_id, occurred_at: recordDate, count, effectiveness, dimensions, notes}).select().single()
-        if(error) throw error
-        return data
-      }
-    }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
-    }
-    const items = lsGet(LS_RECORDS)
-    const r = {id:uid(), exercise_id, occurred_at: recordDate, count, effectiveness, dimensions, notes, created_at:new Date().toISOString()}
-    items.unshift(r)
-    lsSet(LS_RECORDS, items)
-    return r
   },
 
   async getTrainings(teamId){

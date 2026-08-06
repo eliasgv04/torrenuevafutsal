@@ -19,13 +19,8 @@ export default function TeamDashboardModal({teamName, exercises, trainings, onCl
   const data = useMemo(()=>{
     const totalExercises = exercises.length
     const totalTrainings = trainings.length
-    const totalRecords = exercises.reduce((sum, ex)=>sum + (ex.totalCount || 0), 0)
+    const totalUses = exercises.reduce((sum, ex)=>sum + (ex.totalCount || 0), 0)
     const totalPlannedItems = trainings.reduce((sum, tr)=>sum + (tr.items?.length || 0), 0)
-
-    const activeExercises = exercises.filter(ex=>typeof ex.effectivenessAvg === 'number' && ex.totalCount > 0)
-    const avgEffectiveness = activeExercises.length
-      ? Math.round(activeExercises.reduce((sum, ex)=>sum + ex.effectivenessAvg, 0) / activeExercises.length)
-      : 0
 
     const topExercises = [...exercises]
       .sort((a,b)=>(b.totalCount || 0) - (a.totalCount || 0))
@@ -59,9 +54,8 @@ export default function TeamDashboardModal({teamName, exercises, trainings, onCl
     return {
       totalExercises,
       totalTrainings,
-      totalRecords,
+      totalUses,
       totalPlannedItems,
-      avgEffectiveness,
       topExercises,
       maxTop,
       categoryData,
@@ -86,8 +80,7 @@ export default function TeamDashboardModal({teamName, exercises, trainings, onCl
         <div className="dashboard-kpis">
           <div className="kpi-card"><span>Ejercicios</span><strong>{data.totalExercises}</strong></div>
           <div className="kpi-card"><span>Entrenamientos</span><strong>{data.totalTrainings}</strong></div>
-          <div className="kpi-card"><span>Registros</span><strong>{data.totalRecords}</strong></div>
-          <div className="kpi-card"><span>Efectividad media</span><strong>{data.avgEffectiveness}%</strong></div>
+          <div className="kpi-card"><span>Usos totales</span><strong>{data.totalUses}</strong></div>
           <div className="kpi-card"><span>Ejercicios planificados</span><strong>{data.totalPlannedItems}</strong></div>
         </div>
 
