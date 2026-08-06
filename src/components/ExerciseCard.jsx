@@ -27,7 +27,7 @@ export default function ExerciseCard({exercise, onAddRecord, onDelete, onOpenDet
           {selected && <CheckIcon size={13}/>}
         </div>
       )}
-      {exercise.photo_url && <img src={exercise.photo_url} alt={exercise.name} />}
+      {exercise.photo_url && <img src={exercise.photo_url} alt={exercise.name} loading="lazy" decoding="async" />}
       <div className="exercise-card-body">
         <h3 style={{margin:'0 0 4px'}}>{exercise.name}</h3>
         {exercise.category && <span className="exercise-card-category" style={{background:getCategoryColor(exercise.category)}}>{exercise.category}</span>}

@@ -470,6 +470,49 @@ export const api = {
       .sort((a,b)=>(a.order_index ?? 0) - (b.order_index ?? 0))
   },
 
+  // Batched equivalent of getTrainingItems for many trainings at once (avoids
+  // N+1 round trips when loading a team's full training history).
+  async getTrainingItemsByTrainingIds(trainingIds){
+    if(!trainingIds || trainingIds.length === 0) return {}
+    try{
+      if(HAS_SUPABASE){
+        const CHUNK = 25
+        const chunks = []
+        for(let i = 0; i < trainingIds.length; i += CHUNK)
+          chunks.push(trainingIds.slice(i, i + CHUNK))
+
+        const results = await Promise.all(chunks.map(chunk =>
+          withRetry(() =>
+            supabase.from('training_exercises')
+              .select('*')
+              .in('training_id', chunk)
+              .order('order_index', {ascending:true})
+              .order('created_at', {ascending:true})
+              .then(r => { if(r.error) throw r.error; return r.data })
+          )
+        ))
+        const byTraining = {}
+        results.flat().forEach(item => {
+          if(!byTraining[item.training_id]) byTraining[item.training_id] = []
+          byTraining[item.training_id].push(item)
+        })
+        return byTraining
+      }
+    }catch(e){
+      console.error('Supabase error, falling back to localStorage:', e)
+    }
+    const idSet = new Set(trainingIds)
+    const byTraining = {}
+    lsGet(LS_TRAINING_ITEMS)
+      .filter(i=>idSet.has(i.training_id))
+      .sort((a,b)=>(a.order_index ?? 0) - (b.order_index ?? 0))
+      .forEach(item => {
+        if(!byTraining[item.training_id]) byTraining[item.training_id] = []
+        byTraining[item.training_id].push(item)
+      })
+    return byTraining
+  },
+
   async createTraining({team_id, training_date, notes, items, selected_players, objectives, warmup}){
     try{
       if(HAS_SUPABASE){

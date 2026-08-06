@@ -46,6 +46,8 @@ export default function TeamPage({ team, onBack }) {
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [pasting, setPasting] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(30);
+  const EXERCISES_PAGE_SIZE = 30;
 
   const normalizeExerciseName = (value) =>
     String(value || "")
@@ -142,13 +144,19 @@ export default function TeamPage({ team, onBack }) {
 
   async function loadTrainingHistory(teamId) {
     const basicTrainings = await api.getTrainings(teamId);
-    const withItems = await Promise.all(
-      basicTrainings.map(async (training) => {
-        const items = await api.getTrainingItems(training.id);
-        return { ...training, items };
-      }),
+    if (basicTrainings.length === 0) {
+      setTrainings([]);
+      return;
+    }
+    const itemsByTraining = await api.getTrainingItemsByTrainingIds(
+      basicTrainings.map((t) => t.id),
     );
-    setTrainings(withItems);
+    setTrainings(
+      basicTrainings.map((training) => ({
+        ...training,
+        items: itemsByTraining[training.id] || [],
+      })),
+    );
   }
 
   async function onCreateTraining(payload) {
@@ -321,6 +329,15 @@ export default function TeamPage({ team, onBack }) {
     });
   }, [exercises, searchText, categoryFilter, exerciseDateFrom, exerciseDateTo]);
 
+  useEffect(() => {
+    setVisibleCount(EXERCISES_PAGE_SIZE);
+  }, [searchText, categoryFilter, exerciseDateFrom, exerciseDateTo]);
+
+  const visibleExercises = useMemo(
+    () => filteredExercises.slice(0, visibleCount),
+    [filteredExercises, visibleCount],
+  );
+
   function clearExerciseFilters() {
     setSearchText("");
     setCategoryFilter("all");
@@ -464,7 +481,11 @@ export default function TeamPage({ team, onBack }) {
 
           {exercises.length > 0 && (
             <div className="quick-stats-row">
-              <span>{filteredExercises.length} ejercicios visibles</span>
+              <span>
+                {visibleExercises.length < filteredExercises.length
+                  ? `${visibleExercises.length} de ${filteredExercises.length} ejercicios`
+                  : `${filteredExercises.length} ejercicios visibles`}
+              </span>
               {statsLoading && (
                 <span style={{color:'#888', fontSize:12}}>Cargando estadísticas…</span>
               )}
@@ -493,21 +514,33 @@ export default function TeamPage({ team, onBack }) {
               </button>
             </div>
           ) : (
-            <div className="team-list">
-              {filteredExercises.map((e) => (
-                <ExerciseCard
-                  key={e.id}
-                  exercise={e}
-                  onAddRecord={() => setRegisterFor(e)}
-                  onDelete={() => onDeleteExercise(e)}
-                  onOpenDetail={() => setDetailFor(e)}
-                  onEdit={() => setEditingExercise(e)}
-                  selectable={selectMode}
-                  selected={selectedIds.has(e.id)}
-                  onToggleSelect={() => toggleExerciseSelected(e.id)}
-                />
-              ))}
-            </div>
+            <>
+              <div className="team-list">
+                {visibleExercises.map((e) => (
+                  <ExerciseCard
+                    key={e.id}
+                    exercise={e}
+                    onAddRecord={() => setRegisterFor(e)}
+                    onDelete={() => onDeleteExercise(e)}
+                    onOpenDetail={() => setDetailFor(e)}
+                    onEdit={() => setEditingExercise(e)}
+                    selectable={selectMode}
+                    selected={selectedIds.has(e.id)}
+                    onToggleSelect={() => toggleExerciseSelected(e.id)}
+                  />
+                ))}
+              </div>
+              {filteredExercises.length > visibleExercises.length && (
+                <div style={{ display: "flex", justifyContent: "center", marginTop: 20 }}>
+                  <button
+                    className="btn"
+                    onClick={() => setVisibleCount((v) => v + EXERCISES_PAGE_SIZE)}
+                  >
+                    Mostrar más ({filteredExercises.length - visibleExercises.length} restantes)
+                  </button>
+                </div>
+              )}
+            </>
           )}
 
           {exercises.length > 0 && filteredExercises.length === 0 && (
