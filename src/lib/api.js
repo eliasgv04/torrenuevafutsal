@@ -304,8 +304,8 @@ export const api = {
     return items
   },
 
-  async createExercise({team_id,name,objective,file,category,dimensions}){
-    let photo_url = null
+  async createExercise({team_id,name,objective,file,category,dimensions,photo_url:existingPhotoUrl}){
+    let photo_url = existingPhotoUrl || null
     if(file) photo_url = await uploadPhoto(file)
     try{
       if(HAS_SUPABASE){

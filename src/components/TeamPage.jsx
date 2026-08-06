@@ -16,7 +16,8 @@ import PlayerManagement from "./PlayerManagement";
 import MatchManagement from "./MatchManagement";
 import MatchTracker from "./MatchTracker";
 import TacticalBoard from "./TacticalBoard";
-import { ArrowLeftIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon, DumbbellIcon, LoaderIcon } from "./Icons";
+import { ArrowLeftIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon, DumbbellIcon, LoaderIcon, CopyIcon, PasteIcon, CheckSquareIcon, XIcon } from "./Icons";
+import { getExerciseClipboard, setExerciseClipboard } from "../lib/exerciseClipboard";
 
 export default function TeamPage({ team, onBack }) {
   const [view, setView] = useState("hub"); // hub | exercises | trainings | board | roster | matches | stats
@@ -39,6 +40,12 @@ export default function TeamPage({ team, onBack }) {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [exerciseDateFrom, setExerciseDateFrom] = useState("");
   const [exerciseDateTo, setExerciseDateTo] = useState("");
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [clipboardCount, setClipboardCount] = useState(() => getExerciseClipboard().length);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [pasting, setPasting] = useState(false);
 
   const normalizeExerciseName = (value) =>
     String(value || "")
@@ -206,6 +213,73 @@ export default function TeamPage({ team, onBack }) {
     setConfirmFor(exercise);
   }
 
+  function toggleSelectMode() {
+    setSelectMode((s) => !s);
+    setSelectedIds(new Set());
+  }
+
+  function toggleExerciseSelected(id) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function copySelectedToClipboard() {
+    const toCopy = exercises
+      .filter((ex) => selectedIds.has(ex.id))
+      .map((ex) => ({
+        name: ex.name,
+        objective: ex.objective,
+        category: ex.category,
+        dimensions: ex.dimensions,
+        photo_url: ex.photo_url,
+      }));
+    if (toCopy.length === 0) return;
+    setExerciseClipboard(toCopy);
+    setClipboardCount(toCopy.length);
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }
+
+  async function pasteClipboardExercises() {
+    const items = getExerciseClipboard();
+    if (items.length === 0) return;
+    setPasting(true);
+    try {
+      const pasted = [];
+      for (const item of items) {
+        const ex = await api.createExercise({ team_id: team.id, ...item });
+        pasted.push(ex);
+      }
+      setExercises((current) => [...pasted, ...current]);
+    } catch (error) {
+      console.error("Error pegando ejercicios:", error);
+      alert("Error al pegar ejercicios: " + (error.message || error));
+    } finally {
+      setPasting(false);
+    }
+  }
+
+  async function deleteSelectedExercises() {
+    setBulkDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      for (const id of ids) await api.deleteExercise(id);
+      setExercises((current) => current.filter((ex) => !selectedIds.has(ex.id)));
+      setSelectMode(false);
+      setSelectedIds(new Set());
+      setConfirmBulkDelete(false);
+    } catch (error) {
+      console.error("Error eliminando ejercicios:", error);
+      alert("Error al eliminar ejercicios: " + (error.message || error));
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
+
   async function doDeleteExercise() {
     if (!confirmFor) return;
     await api.deleteExercise(confirmFor.id);
@@ -283,7 +357,25 @@ export default function TeamPage({ team, onBack }) {
               </button>
               <h2 style={{display:"inline-block",marginLeft:16,marginTop:0}}>Ejercicios</h2>
             </div>
-            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+              {exercises.length > 0 && (
+                <button
+                  className={selectMode ? "btn btn-icon-only active" : "btn btn-icon-only"}
+                  title={selectMode ? "Salir de selección" : "Seleccionar ejercicios"}
+                  onClick={toggleSelectMode}
+                >
+                  {selectMode ? <XIcon size={15}/> : <CheckSquareIcon size={15}/>}
+                </button>
+              )}
+              {clipboardCount > 0 && (
+                <button
+                  className="btn"
+                  disabled={pasting}
+                  onClick={pasteClipboardExercises}
+                >
+                  <PasteIcon size={13}/> {pasting ? "Pegando…" : `Pegar (${clipboardCount})`}
+                </button>
+              )}
               <button
                 className="btn"
                 onClick={() => setShowExerciseFilters((s) => !s)}
@@ -298,6 +390,34 @@ export default function TeamPage({ team, onBack }) {
               </button>
             </div>
           </div>
+
+          {selectMode && (
+            <div className="exercise-select-bar">
+              <span>
+                {selectedIds.size === 0
+                  ? "Toca los ejercicios que quieras copiar o eliminar"
+                  : selectedIds.size === 1
+                  ? "1 ejercicio seleccionado"
+                  : `${selectedIds.size} ejercicios seleccionados`}
+              </span>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                <button
+                  className="btn btn-primary"
+                  disabled={selectedIds.size === 0}
+                  onClick={copySelectedToClipboard}
+                >
+                  <CopyIcon size={13}/> Copiar
+                </button>
+                <button
+                  className="btn btn-danger"
+                  disabled={selectedIds.size === 0}
+                  onClick={() => setConfirmBulkDelete(true)}
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="exercise-search-row">
             <SearchIcon size={16}/>
@@ -382,6 +502,9 @@ export default function TeamPage({ team, onBack }) {
                   onDelete={() => onDeleteExercise(e)}
                   onOpenDetail={() => setDetailFor(e)}
                   onEdit={() => setEditingExercise(e)}
+                  selectable={selectMode}
+                  selected={selectedIds.has(e.id)}
+                  onToggleSelect={() => toggleExerciseSelected(e.id)}
                 />
               ))}
             </div>
@@ -495,6 +618,18 @@ export default function TeamPage({ team, onBack }) {
           message={`Eliminar el ejercicio "${confirmFor.name}"? Se borrarán también sus registros.`}
           onConfirm={doDeleteExercise}
           onCancel={() => setConfirmFor(null)}
+        />
+      )}
+      {confirmBulkDelete && (
+        <ConfirmModal
+          title={selectedIds.size === 1 ? "Eliminar ejercicio" : `Eliminar ${selectedIds.size} ejercicios`}
+          message={
+            selectedIds.size === 1
+              ? "¿Eliminar el ejercicio seleccionado? Se borrarán también sus registros."
+              : `¿Eliminar los ${selectedIds.size} ejercicios seleccionados? Se borrarán también sus registros.`
+          }
+          onConfirm={deleteSelectedExercises}
+          onCancel={() => !bulkDeleting && setConfirmBulkDelete(false)}
         />
       )}
       {detailFor && (

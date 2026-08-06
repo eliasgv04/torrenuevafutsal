@@ -47,6 +47,10 @@ const KEEPER_COLOR = '#15803d'
 const RIVAL_COLOR  = '#dc2626'
 const TOKEN_R   = 22
 
+// Custom eraser-shaped cursor for the "Borrar" tool (replaces the default cross/cell cursor)
+const ERASER_CURSOR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16l10-10 7 7-3 7z" fill="rgba(15,23,42,0.6)"/><path d="M6.5 17.5l5-5"/></svg>`
+const ERASER_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(ERASER_CURSOR_SVG)}") 3 19, cell`
+
 const PencilIcon = ({ size = 14, color = 'currentColor' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
@@ -66,9 +70,17 @@ const MoveIcon = ({ size = 14, color = 'currentColor' }) => (
   </svg>
 )
 
+const TextIcon = ({ size = 14, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 6h16M12 6v14"/>
+  </svg>
+)
+
 export default function TacticalBoard({ teamId, onClose }) {
   const [players,   setPlayers]   = useState([])
   const [tokens,    setTokens]    = useState([])
+  const [textBoxes, setTextBoxes] = useState([])
+  const [editingTextId, setEditingTextId] = useState(null)
   const [tool,      setTool]      = useState('draw')
   const [color,     setColor]     = useState('#ffffff')
   const [penSize,   setPenSize]   = useState(4)
@@ -81,6 +93,8 @@ export default function TacticalBoard({ teamId, onClose }) {
   const drawingRef  = useRef(false)
   const currentPath = useRef(null)
   const drag        = useRef(null)
+  const dragText    = useRef(null)
+  const textIdRef   = useRef(0)
 
   // Compute the rendered bounds of the image within courtRef (for objectFit:contain)
   function computeImgBounds() {
@@ -176,6 +190,15 @@ export default function TacticalBoard({ teamId, onClose }) {
 
   function onCanvasDown(e) {
     if (tool === 'move') return
+    if (tool === 'text') {
+      e.preventDefault()
+      const pt = canvasPct(e)
+      addTextBox(
+        Math.max(1, Math.min(99, pt.x * 100)),
+        Math.max(1, Math.min(99, pt.y * 100)),
+      )
+      return
+    }
     e.preventDefault()
     e.currentTarget.setPointerCapture(e.pointerId)
     drawingRef.current = true
@@ -240,6 +263,8 @@ export default function TacticalBoard({ teamId, onClose }) {
     historyRef.current = []
     const c = canvasRef.current
     if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height)
+    setTextBoxes([])
+    setEditingTextId(null)
   }
 
   // ── Token helpers ──────────────────────────────────────────────────
@@ -295,6 +320,61 @@ export default function TacticalBoard({ teamId, onClose }) {
     if (tok.isRival) return tok.name.split(' ')[0]
     return tok.name || '?'
   }
+
+  // ── Text box helpers ────────────────────────────────────────────────
+  function addTextBox(x, y) {
+    const id = `text-${textIdRef.current++}`
+    setTextBoxes(prev => [...prev, { id, x, y, text: '', color, fontSize: 12 + penSize * 2 }])
+    setEditingTextId(id)
+  }
+
+  function updateTextBox(id, text) {
+    setTextBoxes(prev => prev.map(t => t.id === id ? { ...t, text } : t))
+  }
+
+  function removeTextBox(id) {
+    setTextBoxes(prev => prev.filter(t => t.id !== id))
+    setEditingTextId(cur => cur === id ? null : cur)
+  }
+
+  function commitTextEdit(id) {
+    setEditingTextId(null)
+    setTextBoxes(prev => {
+      const box = prev.find(t => t.id === id)
+      if (box && !box.text.trim()) return prev.filter(t => t.id !== id)
+      return prev
+    })
+  }
+
+  function onTextDown(e, id) {
+    if (tool === 'erase') {
+      e.preventDefault()
+      e.stopPropagation()
+      removeTextBox(id)
+      return
+    }
+    if (tool !== 'move') return
+    e.preventDefault()
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const rect = courtRef.current.getBoundingClientRect()
+    const box  = textBoxes.find(t => t.id === id)
+    dragText.current = {
+      id,
+      offX: e.clientX - rect.left - (box.x / 100) * rect.width,
+      offY: e.clientY - rect.top  - (box.y / 100) * rect.height,
+    }
+  }
+
+  function onTextMove(e, id) {
+    if (!dragText.current || dragText.current.id !== id) return
+    const rect = courtRef.current.getBoundingClientRect()
+    const x = Math.max(1, Math.min(99, ((e.clientX - rect.left - dragText.current.offX) / rect.width)  * 100))
+    const y = Math.max(1, Math.min(99, ((e.clientY - rect.top  - dragText.current.offY) / rect.height) * 100))
+    setTextBoxes(prev => prev.map(t => t.id === id ? { ...t, x, y } : t))
+  }
+
+  function onTextUp() { dragText.current = null }
 
   // ── Token drag (pointer capture on token itself) ───────────────────
   function onTokenDown(e, tokenId) {
@@ -373,6 +453,21 @@ export default function TacticalBoard({ teamId, onClose }) {
       ctx.shadowBlur = 0
     }
 
+    // 4. Text boxes
+    ctx.textAlign    = 'center'
+    ctx.textBaseline = 'middle'
+    for (const box of textBoxes) {
+      if (!box.text) continue
+      const tx = (box.x / 100) * off.width
+      const ty = (box.y / 100) * off.height
+      ctx.font        = `bold ${box.fontSize}px Raleway, sans-serif`
+      ctx.fillStyle   = box.color
+      ctx.shadowColor = 'rgba(0,0,0,0.7)'
+      ctx.shadowBlur  = 4
+      ctx.fillText(box.text, tx, ty)
+      ctx.shadowBlur = 0
+    }
+
     const url = off.toDataURL('image/png')
     const a   = document.createElement('a')
     a.href     = url
@@ -422,6 +517,7 @@ export default function TacticalBoard({ teamId, onClose }) {
         {/* Mode buttons */}
         {[
           { id: 'draw',  Icon: PencilIcon, label: 'Dibujar' },
+          { id: 'text',  Icon: TextIcon,   label: 'Texto'   },
           { id: 'erase', Icon: EraserIcon, label: 'Borrar'  },
           { id: 'move',  Icon: MoveIcon,   label: 'Mover'   },
         ].map(t => {
@@ -520,7 +616,7 @@ export default function TacticalBoard({ teamId, onClose }) {
           ref={courtRef}
           style={{
             flex: 1, position: 'relative', overflow: 'hidden', background: '#172554',
-            cursor: tool === 'erase' ? 'cell' : tool === 'draw' ? 'crosshair' : 'default',
+            cursor: tool === 'erase' ? ERASER_CURSOR : tool === 'draw' ? 'crosshair' : tool === 'text' ? 'text' : 'default',
           }}
         >
           {/* Background */}
@@ -584,6 +680,65 @@ export default function TacticalBoard({ teamId, onClose }) {
               )}
             </div>
           ))}
+
+          {/* Text boxes */}
+          {textBoxes.map(box => {
+            const editing = editingTextId === box.id
+            return (
+              <div
+                key={box.id}
+                onPointerDown={e => onTextDown(e, box.id)}
+                onPointerMove={e => onTextMove(e, box.id)}
+                onPointerUp={onTextUp}
+                onDoubleClick={e => { e.stopPropagation(); setEditingTextId(box.id) }}
+                style={{
+                  position: 'absolute',
+                  left: `${box.x}%`, top: `${box.y}%`,
+                  transform: 'translate(-50%, -50%)',
+                  cursor: tool === 'move' ? 'grab' : tool === 'erase' ? ERASER_CURSOR : 'default',
+                  touchAction: 'none', userSelect: 'none', zIndex: 21,
+                  pointerEvents: (tool === 'move' || tool === 'erase' || editing) ? 'auto' : 'none',
+                }}
+              >
+                {editing ? (
+                  <input
+                    autoFocus
+                    value={box.text}
+                    placeholder="Texto..."
+                    onChange={e => updateTextBox(box.id, e.target.value)}
+                    onBlur={() => commitTextEdit(box.id)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); commitTextEdit(box.id) } }}
+                    onPointerDown={e => e.stopPropagation()}
+                    style={{
+                      font: `bold ${box.fontSize}px 'Raleway', sans-serif`,
+                      color: box.color, background: 'rgba(0,0,0,0.6)',
+                      border: `1.5px dashed ${box.color}`, borderRadius: 4,
+                      padding: '2px 6px', outline: 'none', minWidth: 70, maxWidth: 260,
+                      textAlign: 'center', pointerEvents: 'auto',
+                    }}
+                  />
+                ) : (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    font: `bold ${box.fontSize}px 'Raleway', sans-serif`, color: box.color,
+                    textShadow: '0 1px 4px rgba(0,0,0,0.75), 0 0 2px rgba(0,0,0,0.9)',
+                    whiteSpace: 'pre', padding: '2px 4px', borderRadius: 4,
+                    border: tool === 'move' ? '1.5px dashed rgba(255,255,255,0.4)' : 'none',
+                  }}>
+                    {box.text || ' '}
+                    {tool === 'move' && (
+                      <button onClick={e => { e.stopPropagation(); removeTextBox(box.id) }} style={{
+                        width: 16, height: 16, borderRadius: '50%', border: '1.5px solid #bbb',
+                        background: '#fff', color: '#333', fontSize: 9, fontWeight: 700,
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        padding: 0, lineHeight: 1, flexShrink: 0, pointerEvents: 'auto',
+                      }}><XIcon size={9}/></button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
 
         {/* Right panel – rivals */}

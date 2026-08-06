@@ -351,6 +351,63 @@ main{padding:32px 24px;flex:1}
   font-size:13px;
 }
 
+.exercise-card-selectable{
+  cursor:pointer;
+  user-select:none;
+}
+
+.exercise-card-selected{
+  border-color:#2563EB;
+  box-shadow:0 0 0 2px #2563EB, var(--shadow-md);
+}
+
+.exercise-card-checkbox{
+  position:absolute;
+  top:12px;
+  right:12px;
+  width:24px;
+  height:24px;
+  border-radius:7px;
+  background:#fff;
+  border:2px solid rgba(30,58,138,0.3);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#fff;
+  z-index:2;
+  cursor:pointer;
+  transition:all 0.15s ease;
+}
+
+.exercise-card-checkbox.checked{
+  background:#2563EB;
+  border-color:#2563EB;
+}
+
+.exercise-select-bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  background:rgba(255,255,255,0.95);
+  border:1.5px solid rgba(37,99,235,0.3);
+  border-radius:10px;
+  padding:10px 14px;
+  margin-bottom:14px;
+  font-size:13px;
+  font-weight:600;
+  color:var(--green-dark);
+}
+
+.exercise-select-bar .btn{
+  margin-top:0;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  white-space:nowrap;
+}
+
 .card:hover{
   transform:translateY(-8px);
   box-shadow:var(--shadow-lg);
@@ -444,6 +501,19 @@ main{padding:32px 24px;flex:1}
 
 .btn-danger:hover{
   box-shadow:0 6px 20px rgba(220,38,38,0.35);
+}
+
+.btn-icon-only{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:44px;
+  height:44px;
+  padding:0;
+}
+
+.btn-icon-only.active{
+  background:linear-gradient(135deg, #b91c1c 0%, #ef4444 100%);
 }
 
 .btn-secondary{
