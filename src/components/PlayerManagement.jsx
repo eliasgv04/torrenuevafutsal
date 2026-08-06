@@ -28,6 +28,7 @@ function sumMatches(matches){
 
 export default function PlayerManagement({ teamId, onClose }) {
   const [players, setPlayers] = useState([])
+  const [trainings, setTrainings] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [detailPlayer, setDetailPlayer] = useState(null)
   const [playerMatchesMap, setPlayerMatchesMap] = useState({})
@@ -37,6 +38,7 @@ export default function PlayerManagement({ teamId, onClose }) {
 
   useEffect(() => {
     loadPlayers()
+    api.getTrainings(teamId).then(setTrainings)
   }, [teamId])
 
   const loadPlayers = async () => {
@@ -95,6 +97,11 @@ export default function PlayerManagement({ teamId, onClose }) {
   const detailMatches = detailPlayer ? (playerMatchesMap[detailPlayer.id] || []) : []
   const detailTotals = sumMatches(detailMatches)
   const recentMatches = detailMatches.slice(0, 3)
+
+  const attendedTrainings = detailPlayer
+    ? trainings.filter(t => Array.isArray(t.attending_players) && t.attending_players.includes(detailPlayer.id)).length
+    : 0
+  const attendancePct = trainings.length > 0 ? Math.round((attendedTrainings / trainings.length) * 100) : 0
 
   const sortedPlayers = [...players].sort((a, b) => {
     const posDiff = positions.indexOf(a.position) - positions.indexOf(b.position)
@@ -198,6 +205,16 @@ export default function PlayerManagement({ teamId, onClose }) {
                 </span>
               </div>
             </div>
+
+            {trainings.length > 0 && (
+              <div style={{marginBottom:18}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:4}}>
+                  <span style={{fontSize:13,fontWeight:700,color:'var(--green-dark)'}}>Asistencia a entrenamientos</span>
+                  <span style={{fontSize:13,fontWeight:700,color:'var(--green-dark)'}}>{attendedTrainings}/{trainings.length} · {attendancePct}%</span>
+                </div>
+                <div className="bar-track"><div className="bar-fill" style={{width:`${attendancePct}%`}}/></div>
+              </div>
+            )}
 
             {loadingMatches && !playerMatchesMap[detailPlayer.id] ? (
               <p className="player-stats-note">Cargando estadísticas...</p>

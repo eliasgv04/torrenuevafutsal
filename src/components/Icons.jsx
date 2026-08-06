@@ -41,3 +41,5 @@ export const CheckIcon       = i(<><path d="M5 12l5 5l10 -10"/></>, {strokeWidth
 export const CopyIcon        = i(<><path d="M8 8m0 2a2 2 0 0 1 2 -2h9a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-9a2 2 0 0 1 -2 -2z"/><path d="M16 8v-2a2 2 0 0 0 -2 -2h-9a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h2"/></>)
 export const PasteIcon       = i(<><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"/><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z"/></>)
 export const CheckSquareIcon = i(<><path d="M9 11l3 3l8 -8"/><path d="M20 12v6a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h9"/></>)
+export const ChevronLeftIcon  = i(<><path d="M15 6l-6 6l6 6"/></>, {strokeWidth:'2.5'})
+export const ChevronRightIcon = i(<><path d="M9 6l6 6l-6 6"/></>, {strokeWidth:'2.5'})

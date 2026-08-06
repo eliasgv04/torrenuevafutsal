@@ -18,7 +18,8 @@ export default function TeamHub({
   onOpenMatches,
   onOpenRoster,
   onOpenBoard,
-  onOpenStats
+  onOpenStats,
+  onOpenCalendar
 }){
   const cards = [
     {
@@ -77,6 +78,9 @@ export default function TeamHub({
           </button>
           <h2 style={{display:'inline-block',marginLeft:16,marginTop:0}}>{team.name}</h2>
         </div>
+        <button className="btn btn-icon-only" onClick={onOpenCalendar} title="Calendario" aria-label="Calendario">
+          <CalendarIcon size={18}/>
+        </button>
       </div>
 
       <div className="hub-grid">

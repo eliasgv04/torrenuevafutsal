@@ -15,11 +15,12 @@ import PlayerManagement from "./PlayerManagement";
 import MatchManagement from "./MatchManagement";
 import MatchTracker from "./MatchTracker";
 import TacticalBoard from "./TacticalBoard";
+import TeamCalendar from "./TeamCalendar";
 import { ArrowLeftIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon, DumbbellIcon, LoaderIcon, CopyIcon, PasteIcon, CheckSquareIcon, XIcon } from "./Icons";
 import { getExerciseClipboard, setExerciseClipboard } from "../lib/exerciseClipboard";
 
 export default function TeamPage({ team, onBack }) {
-  const [view, setView] = useState("hub"); // hub | exercises | trainings | board | roster | matches | stats
+  const [view, setView] = useState("hub"); // hub | exercises | trainings | board | roster | matches | stats | calendar
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [exercises, setExercises] = useState([]);
   const [creating, setCreating] = useState(false);
@@ -341,6 +342,15 @@ export default function TeamPage({ team, onBack }) {
           onOpenRoster={() => setView("roster")}
           onOpenBoard={() => setView("board")}
           onOpenStats={() => setView("stats")}
+          onOpenCalendar={() => setView("calendar")}
+        />
+      )}
+
+      {view === "calendar" && (
+        <TeamCalendar
+          teamId={team.id}
+          team={team}
+          onBack={() => setView("hub")}
         />
       )}
 
