@@ -609,8 +609,8 @@ export default function TacticalBoard({ teamId, onClose }) {
 
 function SidePanel({ title, children }) {
   return (
-    <div style={{
-      width: 220, background: 'rgba(0,0,0,0.55)', borderRight: '1px solid rgba(255,255,255,0.08)',
+    <div className="tactical-side-panel" style={{
+      background: 'rgba(0,0,0,0.55)', borderRight: '1px solid rgba(255,255,255,0.08)',
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
       flexShrink: 0,
     }}>
@@ -620,9 +620,9 @@ function SidePanel({ title, children }) {
         borderBottom: '1px solid rgba(255,255,255,0.15)', letterSpacing: '0.5px',
         flexShrink: 0, textTransform: 'uppercase',
       }}>{title}</div>
-      <div style={{
+      <div className="tactical-side-panel-body" style={{
         flex: 1, overflowY: 'auto', padding: '6px',
-        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 5,
+        display: 'grid', gap: 5,
         alignContent: 'start',
       }}>
         {children}

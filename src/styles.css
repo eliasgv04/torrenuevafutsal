@@ -1556,12 +1556,6 @@ label{
   font-size:14px;
 }
 
-.rival-stats-grid{
-  display:grid;
-  grid-template-columns:repeat(5, minmax(0, 1fr));
-  gap:10px;
-}
-
 .rival-stat-field{
   display:flex;
   flex-direction:column;
@@ -2732,5 +2726,44 @@ label{
   text-align:center;
   font-size:12px;
   color:#94a3b8;
+}
+
+/* ===== Tactical board side panels (responsive) ===== */
+.tactical-side-panel{
+  width:220px;
+}
+.tactical-side-panel-body{
+  grid-template-columns:1fr 1fr 1fr;
+}
+@media (max-width:900px){
+  .tactical-side-panel{ width:150px; }
+}
+@media (max-width:600px){
+  .tactical-side-panel{ width:110px; }
+  .tactical-side-panel-body{ grid-template-columns:1fr 1fr; }
+}
+@media (max-width:420px){
+  .tactical-side-panel{ width:88px; }
+  .tactical-side-panel-body{ grid-template-columns:1fr; padding:4px !important; gap:4px !important; }
+}
+
+/* ===== Dashboard KPI strip (responsive) ===== */
+@media (max-width:700px){
+  .dashboard-kpis{ grid-template-columns:repeat(2, 1fr); }
+}
+@media (max-width:400px){
+  .dashboard-kpis{ grid-template-columns:1fr; }
+}
+
+/* ===== App header (responsive) ===== */
+@media (max-width:480px){
+  .app-header{ flex-wrap:wrap; gap:10px 16px; }
+  .app-header h1{ font-size:22px; }
+  .logo{ width:48px; height:48px; }
+}
+
+/* ===== Global overflow safety net ===== */
+html, body{
+  overflow-x:hidden;
 }
 
