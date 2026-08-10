@@ -193,9 +193,16 @@ export const api = {
     const payload = {name, gradient_start, gradient_end, crest_url}
     try{
       if(HAS_SUPABASE){
-        const { data, error } = await supabase.from('teams').insert(payload).select().single()
+        // Id generated client-side and inserted without .select(): an
+        // INSERT ... RETURNING would require a SELECT policy check on the
+        // new row before the creator-access trigger's grant is guaranteed
+        // visible to it. Skipping RETURNING sidesteps that entirely — we
+        // already know everything about the row we just built.
+        const id = crypto.randomUUID()
+        const created_at = new Date().toISOString()
+        const { error } = await supabase.from('teams').insert({ id, created_at, ...payload })
         if(error) throw error
-        return data
+        return { id, created_at, ...payload }
       }
     }catch(e){
       console.error('Supabase error, falling back to localStorage:', e)
@@ -1012,6 +1019,18 @@ export const api = {
       })
       .filter(s => s.status === 'finished')
       .sort((a,b)=>new Date(b.match_date||0) - new Date(a.match_date||0))
+  },
+
+  // Public "solicitar acceso" form. Deliberately never .select()s the row
+  // back — RLS only grants INSERT here, no SELECT, so requesting the row
+  // back would fail. Whoever reviews requests does it from the Supabase
+  // dashboard (which bypasses RLS), not from inside the app.
+  async requestAccess({team_name, contact_name, contact_email, message}){
+    if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
+    const { error } = await supabase.from('access_requests').insert({
+      team_name, contact_name, contact_email, message: message || null
+    })
+    if(error) throw error
   }
 }
 

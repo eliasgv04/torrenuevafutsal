@@ -55,33 +55,283 @@ body{
 .app-root{min-height:100vh;display:flex;flex-direction:column}
 main{padding:32px 24px;flex:1}
 
-.login-shell{
-  min-height:100vh;
+/* ===== Landing page ===== */
+.landing-page{
+  position:relative;
+  height:100vh;
+  height:calc(100dvh - 2px);
   display:flex;
   align-items:center;
   justify-content:center;
-  padding:24px;
+  padding:32px 24px;
+  background:var(--bg);
+  /* The -2px slack absorbs the sub-pixel rounding some Windows
+     display-scaling setups introduce into 100dvh, which would otherwise be
+     just enough overflow to force a full-height scrollbar for no visible
+     reason. overflow stays auto (not hidden) so genuinely short viewports
+     still scroll instead of clipping real content. */
+  overflow-y:auto;
+}
+
+.pitch-lines{
+  position:absolute;
+  inset:0;
+  color:#fff;
+  opacity:0.08;
+  pointer-events:none;
+}
+.pitch-lines svg{ width:100%; height:100%; }
+
+.landing-hero{
+  position:relative;
+  z-index:1;
+  max-width:640px;
+  text-align:center;
+  animation:heroRise 0.7s ease-out;
+}
+
+.landing-brand{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+}
+
+.landing-logo{
+  width:40px;
+  height:40px;
+  border-radius:11px;
+  box-shadow:0 8px 20px rgba(0,0,0,0.3);
+  animation:bounce 0.7s ease-out;
+  object-fit:contain;
+}
+
+.landing-wordmark{
+  font-family:'Poppins', sans-serif;
+  font-weight:700;
+  font-size:20px;
+  color:#fff;
+  letter-spacing:-0.3px;
+}
+
+.landing-eyebrow{
+  margin:18px 0 0;
+  color:rgba(255,255,255,0.7);
+  font-family:'Poppins', sans-serif;
+  font-weight:600;
+  font-size:12px;
+  letter-spacing:2.5px;
+  text-transform:uppercase;
+}
+
+.landing-title{
+  margin:10px 0 0;
+  font-family:'Poppins', sans-serif;
+  font-weight:800;
+  font-size:clamp(28px, 4.5vw, 42px);
+  line-height:1.1;
+  letter-spacing:-1px;
+  color:#fff;
+  text-wrap:balance;
+}
+
+.landing-subtitle{
+  margin:14px auto 0;
+  max-width:480px;
+  color:rgba(255,255,255,0.82);
+  font-size:15px;
+  line-height:1.55;
+}
+
+.landing-ctas{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  flex-wrap:wrap;
+  margin-top:24px;
+}
+
+.landing-features{
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 220px));
+  justify-content:center;
+  justify-items:center;
+  gap:10px;
+  margin-top:32px;
+  animation:fadeIn 1s ease-out 0.2s both;
+}
+
+.landing-feature-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  background:rgba(255,255,255,0.07);
+  border:1px solid rgba(255,255,255,0.14);
+  border-radius:999px;
+  padding:8px 16px 8px 8px;
+  font-family:'Poppins', sans-serif;
+  font-size:13px;
+  font-weight:600;
+  color:rgba(255,255,255,0.9);
+  white-space:nowrap;
+}
+
+.landing-feature-icon{
+  width:26px;
+  height:26px;
+  border-radius:999px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%);
+  color:#fff;
+  flex-shrink:0;
+}
+
+.landing-footer{
+  position:absolute;
+  z-index:1;
+  bottom:20px;
+  left:0;
+  right:0;
+  margin:0;
+  text-align:center;
+  font-size:12px;
+  color:rgba(255,255,255,0.4);
+}
+
+.login-back{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  background:rgba(37,99,235,0.07);
+  border:1px solid rgba(37,99,235,0.16);
+  border-radius:999px;
+  padding:6px 14px 6px 10px;
+  margin-bottom:18px;
+  color:var(--green-dark);
+  font-family:'Poppins', sans-serif;
+  font-weight:700;
+  font-size:13px;
+  cursor:pointer;
+  transition:all 0.2s ease;
+}
+.login-back:hover{
+  background:rgba(37,99,235,0.13);
+  border-color:rgba(37,99,235,0.28);
+  transform:translateX(-3px);
+}
+.login-back svg{
+  transition:transform 0.2s ease;
+}
+.login-back:hover svg{
+  transform:translateX(-2px);
+}
+
+@keyframes heroRise{
+  from{opacity:0; transform:translateY(18px);}
+  to{opacity:1; transform:translateY(0);}
+}
+
+@media (max-width:480px){
+  .landing-ctas{ flex-direction:column; align-items:stretch; }
+  .landing-btn-primary, .landing-btn-secondary{ width:100%; }
+  .landing-feature-pill{ font-size:12px; }
+}
+@media (max-width:400px){
+  .landing-features{ grid-template-columns:minmax(0, 220px); }
+}
+@media (max-height:640px){
+  .landing-page{ align-items:flex-start; padding-top:28px; }
+  .landing-footer{ display:none; }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .landing-hero, .landing-logo, .landing-features{ animation:none; }
+}
+
+.login-shell{
+  position:relative;
+  height:100vh;
+  height:calc(100dvh - 2px);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:18px;
+  padding:20px;
+  overflow-y:auto;
+}
+
+.auth-brand{
+  position:relative;
+  z-index:1;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-shrink:0;
+}
+.auth-brand img{
+  width:34px;
+  height:34px;
+  border-radius:10px;
+  box-shadow:0 8px 20px rgba(0,0,0,0.3);
+  object-fit:contain;
+}
+.auth-brand span{
+  font-family:'Poppins', sans-serif;
+  font-weight:700;
+  font-size:18px;
+  color:#fff;
 }
 
 .login-card{
+  position:relative;
+  z-index:1;
   width:100%;
   max-width:420px;
+  max-height:100%;
+  overflow-y:auto;
   background:rgba(255,255,255,0.95);
   border-radius:18px;
-  padding:28px;
+  padding:24px;
   box-shadow:var(--shadow-lg);
   animation:scaleIn 0.35s ease-out;
 }
 
 .login-card h2{
-  margin:0 0 8px;
+  margin:0 0 4px;
   font-family:'Poppins', sans-serif;
-  font-size:28px;
+  font-size:24px;
+}
+
+@media (max-height:640px){
+  .auth-brand{ display:none; }
 }
 
 .login-card p{
-  margin:0 0 14px;
+  margin:0 0 10px;
+  font-size:14px;
   color:var(--text-light);
+}
+
+.login-card label{
+  margin:10px 0 0;
+  font-size:13px;
+}
+
+.login-card input,
+.login-card textarea{
+  margin:4px 0 8px;
+  padding:9px 12px;
+  font-size:13px;
+}
+
+.login-card textarea{
+  min-height:0;
 }
 
 .login-error{
@@ -92,6 +342,27 @@ main{padding:32px 24px;flex:1}
 
 .login-btn{
   width:100%;
+}
+
+.login-switch{
+  text-align:center;
+  font-size:13px;
+  color:var(--text-light);
+  margin:16px 0 0;
+}
+
+.login-link{
+  background:none;
+  border:none;
+  padding:0;
+  color:var(--green-light);
+  font-weight:700;
+  font-size:13px;
+  cursor:pointer;
+  text-decoration:underline;
+}
+.login-link:hover{
+  color:var(--green-dark);
 }
 
 .team-list{
@@ -610,6 +881,22 @@ main{padding:32px 24px;flex:1}
 
 .btn-primary:hover{
   transform:translateY(-1px);
+}
+
+.landing-btn-primary,
+.landing-btn-secondary{
+  padding:11px 20px;
+  font-size:14px;
+  border-radius:10px;
+  margin-top:0;
+}
+.landing-btn-secondary{
+  background:rgba(255,255,255,0.08);
+  color:#fff;
+  border:1px solid rgba(255,255,255,0.28);
+}
+.landing-btn-secondary:hover{
+  background:rgba(255,255,255,0.16);
 }
 
 .empty-state{
@@ -3142,6 +3429,8 @@ label{
   .app-header{ flex-wrap:wrap; gap:10px 16px; }
   .app-header h1{ font-size:22px; }
   .logo{ width:48px; height:48px; }
+  .app-header-actions{ flex-wrap:wrap; margin-left:0 !important; width:100%; }
+  .app-header-actions .btn{ flex:1; }
 }
 
 /* ===== Global overflow safety net ===== */
