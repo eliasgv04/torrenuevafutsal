@@ -5,6 +5,7 @@ import { api } from './lib/api'
 import ChangePasswordModal from './components/ChangePasswordModal'
 import LandingPage from './components/LandingPage'
 import PitchLines from './components/PitchLines'
+import AdminPanel from './components/AdminPanel'
 import { ArrowLeftIcon } from './components/Icons'
 
 function AuthBrand() {
@@ -23,6 +24,7 @@ const LEGACY_USERS = {
   'torrenuevafutsal': 'torrenuevafutsal@torrenuevafutsal.local',
   'rodrijimbee': 'rodrijimbee@torrenuevafutsal.local',
   'davidmanzanares': 'davidmanzanares@torrenuevafutsal.local',
+  'admin': 'admin@torrenuevafutsal.local',
 }
 
 const EMPTY_REQUEST = { team_name: '', contact_name: '', contact_email: '', message: '' }
@@ -36,6 +38,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [activeTeam, setActiveTeam] = useState(null)
   const [showChangePassword, setShowChangePassword] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   const [requestForm, setRequestForm] = useState(EMPTY_REQUEST)
   const [requestError, setRequestError] = useState('')
@@ -52,6 +55,11 @@ export default function App() {
     })
     return () => subscription.unsubscribe()
   }, [])
+
+  useEffect(() => {
+    if (session) api.isAdmin().then(setIsAdmin)
+    else setIsAdmin(false)
+  }, [session])
 
   async function handleLogin(e) {
     e.preventDefault()
@@ -229,15 +237,15 @@ export default function App() {
     )
   }
 
-  const bgStart = activeTeam?.gradient_start || '#172554'
-  const bgEnd = activeTeam?.gradient_end || '#2563EB'
+  const bgStart = isAdmin ? '#172554' : (activeTeam?.gradient_start || '#172554')
+  const bgEnd   = isAdmin ? '#2563EB' : (activeTeam?.gradient_end   || '#2563EB')
   const teamGradient = `linear-gradient(135deg, ${bgStart} 0%, ${bgEnd} 100%)`
 
   return (
     <div className="app-root" style={{ background: teamGradient }}>
       <header className="app-header">
         <img src="./futsalkit-icon.svg" alt="FutsalKit" className="logo" />
-        <h1>FutsalKit</h1>
+        <h1>FutsalKit{isAdmin ? ' · Admin' : ''}</h1>
         <div className="app-header-actions" style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
           <button className="btn btn-secondary" onClick={() => setShowChangePassword(true)}>
             Cambiar contraseña
@@ -248,7 +256,7 @@ export default function App() {
         </div>
       </header>
       <main>
-        <HomePage onActiveTeamChange={setActiveTeam} />
+        {isAdmin ? <AdminPanel /> : <HomePage onActiveTeamChange={setActiveTeam} />}
       </main>
       {showChangePassword && (
         <ChangePasswordModal

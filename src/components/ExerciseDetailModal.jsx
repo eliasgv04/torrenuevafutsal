@@ -1,6 +1,8 @@
-import React, {useMemo} from 'react'
+import React, {useMemo, useState} from 'react'
+import Lightbox from './Lightbox'
 
 export default function ExerciseDetailModal({exercise, trainings, onClose, onEdit}){
+  const [showLightbox, setShowLightbox] = useState(false)
   const usedIn = useMemo(() => {
     return (trainings || [])
       .map((training) => {
@@ -22,7 +24,16 @@ export default function ExerciseDetailModal({exercise, trainings, onClose, onEdi
           </div>
         </div>
         <p className="small">{exercise.objective}</p>
-        {exercise.photo_url && <img src={exercise.photo_url} alt={exercise.name} style={{width:'100%',borderRadius:10,objectFit:'cover',marginTop:12,maxHeight:360}} />}
+        {exercise.photo_url && (
+          <img
+            src={exercise.photo_url} alt={exercise.name}
+            onClick={() => setShowLightbox(true)}
+            style={{width:'100%',borderRadius:10,objectFit:'cover',marginTop:12,maxHeight:360,cursor:'zoom-in'}}
+          />
+        )}
+        {showLightbox && (
+          <Lightbox src={exercise.photo_url} alt={exercise.name} onClose={() => setShowLightbox(false)} />
+        )}
         <div style={{marginTop:16}}>
           <h4>Usado en entrenamientos ({usedIn.length})</h4>
           {usedIn.length === 0 ? (

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { api } from '../lib/api'
-import { ArrowLeftIcon, XIcon } from './Icons'
+import { ArrowLeftIcon, XIcon, CopyIcon, CheckIcon } from './Icons'
 
 const PIZARRA_URL = import.meta.env.BASE_URL + 'futsalkit-pizarra.jpg'
 
@@ -76,6 +76,22 @@ const TextIcon = ({ size = 14, color = 'currentColor' }) => (
   </svg>
 )
 
+const RectangleIcon = ({ size = 14, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3.5" y="5.5" width="17" height="13" rx="1.5"/>
+  </svg>
+)
+
+const PolygonIcon = ({ size = 14, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 3l8 5.5-3 11.5H7L4 8.5z"/>
+  </svg>
+)
+
+// Tools that paint in the active palette color (as opposed to erase/text/move,
+// which repurpose the color swatches/pen sizes for other things or ignore them).
+const DRAW_TOOLS = ['draw', 'rect', 'polygon']
+
 export default function TacticalBoard({ teamId, onClose }) {
   const [players,   setPlayers]   = useState([])
   const [tokens,    setTokens]    = useState([])
@@ -84,6 +100,8 @@ export default function TacticalBoard({ teamId, onClose }) {
   const [tool,      setTool]      = useState('draw')
   const [color,     setColor]     = useState('#ffffff')
   const [penSize,   setPenSize]   = useState(4)
+  const [polyPointCount, setPolyPointCount] = useState(0)
+  const [copyStatus, setCopyStatus] = useState(null) // null | 'done' | 'error'
 
   const courtRef    = useRef(null)
   const canvasRef   = useRef(null)
@@ -95,6 +113,10 @@ export default function TacticalBoard({ teamId, onClose }) {
   const drag        = useRef(null)
   const dragText    = useRef(null)
   const textIdRef   = useRef(0)
+  const rectStart   = useRef(null)
+  const rectEnd     = useRef(null)
+  const polyPoints  = useRef([])
+  const hatchCache  = useRef({})
 
   // Compute the rendered bounds of the image within courtRef (for objectFit:contain)
   function computeImgBounds() {
@@ -121,7 +143,7 @@ export default function TacticalBoard({ teamId, onClose }) {
   }, [teamId])
 
   // ── Canvas resize (retained mode) ─────────────────────────────────
-  const redraw = useCallback(() => {
+  const redrawWithExtra = useCallback((extra) => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
@@ -131,8 +153,13 @@ export default function TacticalBoard({ teamId, onClose }) {
     for (const op of historyRef.current) {
       if (op.type === 'path') drawPath(ctx, op, w, h)
       else if (op.type === 'text') drawText(ctx, op, w, h)
+      else if (op.type === 'rect') drawRectOp(ctx, op, w, h)
+      else if (op.type === 'polygon') drawPolygonOp(ctx, op, w, h)
     }
+    if (extra) extra(ctx, w, h)
   }, [])
+
+  const redraw = useCallback(() => redrawWithExtra(null), [redrawWithExtra])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -146,6 +173,23 @@ export default function TacticalBoard({ teamId, onClose }) {
     ro.observe(canvas)
     return () => ro.disconnect()
   }, [redraw])
+
+  // Cancel an in-progress polygon if the user switches tool or hits Escape
+  useEffect(() => {
+    if (tool !== 'polygon' && polyPoints.current.length > 0) {
+      polyPoints.current = []
+      setPolyPointCount(0)
+      redraw()
+    }
+  }, [tool, redraw])
+
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === 'Escape' && polyPoints.current.length > 0) cancelPolygon()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // ── Canvas draw helpers ────────────────────────────────────────────
   function drawPath(ctx, op, w, h) {
@@ -181,6 +225,110 @@ export default function TacticalBoard({ teamId, onClose }) {
     ctx.restore()
   }
 
+  // Diagonal-hatch fill so a marked zone reads as a shaded region without
+  // hiding the court underneath — cached per color so dragging a shape
+  // around doesn't rebuild the tile pattern on every redraw.
+  function getHatchPattern(ctx, color) {
+    if (hatchCache.current[color]) return hatchCache.current[color]
+    const size = 12
+    const tile = document.createElement('canvas')
+    tile.width = size; tile.height = size
+    const tctx = tile.getContext('2d')
+    tctx.strokeStyle = color
+    tctx.globalAlpha  = 0.55
+    tctx.lineWidth    = 2
+    tctx.beginPath()
+    tctx.moveTo(0, size); tctx.lineTo(size, 0)
+    tctx.moveTo(-size / 2, size / 2); tctx.lineTo(size / 2, -size / 2)
+    tctx.moveTo(size / 2, size * 1.5); tctx.lineTo(size * 1.5, size / 2)
+    tctx.stroke()
+    const pattern = ctx.createPattern(tile, 'repeat')
+    hatchCache.current[color] = pattern
+    return pattern
+  }
+
+  function fillHatched(ctx, color, buildPath) {
+    ctx.beginPath()
+    buildPath()
+    ctx.globalAlpha = 0.08
+    ctx.fillStyle   = color
+    ctx.fill()
+    ctx.globalAlpha = 1
+    ctx.fillStyle   = getHatchPattern(ctx, color)
+    ctx.fill()
+  }
+
+  function drawRectOp(ctx, op, w, h) {
+    ctx.save()
+    ctx.globalCompositeOperation = 'source-over'
+    const rx = op.x * w, ry = op.y * h, rw = op.w * w, rh = op.h * h
+    fillHatched(ctx, op.color, () => ctx.rect(rx, ry, rw, rh))
+    ctx.strokeStyle = op.color
+    ctx.lineWidth   = op.size
+    ctx.strokeRect(rx, ry, rw, rh)
+    ctx.restore()
+  }
+
+  function drawPolygonOp(ctx, op, w, h) {
+    ctx.save()
+    ctx.globalCompositeOperation = 'source-over'
+    const pts = op.points
+    fillHatched(ctx, op.color, () => {
+      ctx.moveTo(pts[0].x * w, pts[0].y * h)
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * w, pts[i].y * h)
+      ctx.closePath()
+    })
+    ctx.strokeStyle = op.color
+    ctx.lineWidth   = op.size
+    ctx.beginPath()
+    ctx.moveTo(pts[0].x * w, pts[0].y * h)
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * w, pts[i].y * h)
+    ctx.closePath()
+    ctx.stroke()
+    ctx.restore()
+  }
+
+  // Live rubber-band preview while a polygon is mid-construction: lines
+  // through the placed points, one more to the current cursor, and dots
+  // marking each vertex (the first one enlarged as the "click to close" target).
+  function drawPolyPreview(ctx, w, h, cursorPt) {
+    const pts = polyPoints.current
+    if (pts.length === 0) return
+    ctx.save()
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.setLineDash([6, 4])
+    ctx.strokeStyle = color
+    ctx.lineWidth   = 2
+    ctx.beginPath()
+    ctx.moveTo(pts[0].x * w, pts[0].y * h)
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * w, pts[i].y * h)
+    if (cursorPt) ctx.lineTo(cursorPt.x * w, cursorPt.y * h)
+    ctx.stroke()
+    ctx.setLineDash([])
+    pts.forEach((p, i) => {
+      ctx.beginPath()
+      ctx.arc(p.x * w, p.y * h, i === 0 ? 6 : 4, 0, Math.PI * 2)
+      ctx.fillStyle = color
+      ctx.fill()
+    })
+    ctx.restore()
+  }
+
+  function finishPolygon() {
+    if (polyPoints.current.length >= 3) {
+      historyRef.current.push({ type: 'polygon', color, size: penSize, points: polyPoints.current })
+    }
+    polyPoints.current = []
+    setPolyPointCount(0)
+    redraw()
+  }
+
+  function cancelPolygon() {
+    polyPoints.current = []
+    setPolyPointCount(0)
+    redraw()
+  }
+
   // ── Canvas pointer handlers ────────────────────────────────────────
   function canvasPct(e) {
     const c = canvasRef.current
@@ -197,6 +345,30 @@ export default function TacticalBoard({ teamId, onClose }) {
         Math.max(1, Math.min(99, pt.x * 100)),
         Math.max(1, Math.min(99, pt.y * 100)),
       )
+      return
+    }
+    if (tool === 'rect') {
+      e.preventDefault()
+      e.currentTarget.setPointerCapture(e.pointerId)
+      drawingRef.current = true
+      const pt = canvasPct(e)
+      rectStart.current = pt
+      rectEnd.current   = pt
+      return
+    }
+    if (tool === 'polygon') {
+      e.preventDefault()
+      const pt  = canvasPct(e)
+      const pts = polyPoints.current
+      if (pts.length >= 3) {
+        const c  = canvasRef.current
+        const dx = (pt.x - pts[0].x) * c.width
+        const dy = (pt.y - pts[0].y) * c.height
+        if (Math.hypot(dx, dy) < 14) { finishPolygon(); return }
+      }
+      polyPoints.current = [...pts, pt]
+      setPolyPointCount(polyPoints.current.length)
+      redrawWithExtra((ctx, w, h) => drawPolyPreview(ctx, w, h, pt))
       return
     }
     e.preventDefault()
@@ -225,6 +397,27 @@ export default function TacticalBoard({ teamId, onClose }) {
   }
 
   function onCanvasMove(e) {
+    if (tool === 'rect' && drawingRef.current) {
+      const pt = canvasPct(e)
+      rectEnd.current = pt
+      redrawWithExtra((ctx, w, h) => {
+        const s = rectStart.current
+        const rx = Math.min(s.x, pt.x) * w, ry = Math.min(s.y, pt.y) * h
+        const rw = Math.abs(pt.x - s.x) * w, rh = Math.abs(pt.y - s.y) * h
+        ctx.save()
+        ctx.setLineDash([6, 4])
+        ctx.strokeStyle = color
+        ctx.lineWidth   = 2
+        ctx.strokeRect(rx, ry, rw, rh)
+        ctx.restore()
+      })
+      return
+    }
+    if (tool === 'polygon' && polyPoints.current.length > 0) {
+      const pt = canvasPct(e)
+      redrawWithExtra((ctx, w, h) => drawPolyPreview(ctx, w, h, pt))
+      return
+    }
     if (!drawingRef.current || !currentPath.current) return
     const pt   = canvasPct(e)
     const prev = currentPath.current.points[currentPath.current.points.length - 1]
@@ -252,6 +445,23 @@ export default function TacticalBoard({ teamId, onClose }) {
   }
 
   function onCanvasUp() {
+    if (tool === 'rect' && drawingRef.current) {
+      drawingRef.current = false
+      const s = rectStart.current, en = rectEnd.current
+      if (s && en) {
+        const w = Math.abs(en.x - s.x), h = Math.abs(en.y - s.y)
+        if (w > 0.008 && h > 0.008) {
+          historyRef.current.push({
+            type: 'rect', color, size: penSize,
+            x: Math.min(s.x, en.x), y: Math.min(s.y, en.y), w, h,
+          })
+        }
+      }
+      rectStart.current = null
+      rectEnd.current   = null
+      redraw()
+      return
+    }
     if (drawingRef.current && currentPath.current?.points.length > 0) {
       historyRef.current.push(currentPath.current)
     }
@@ -259,8 +469,14 @@ export default function TacticalBoard({ teamId, onClose }) {
     currentPath.current = null
   }
 
+  function onCanvasDoubleClick() {
+    if (tool === 'polygon' && polyPoints.current.length >= 3) finishPolygon()
+  }
+
   function clearCanvas() {
     historyRef.current = []
+    polyPoints.current = []
+    setPolyPointCount(0)
     const c = canvasRef.current
     if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height)
     setTextBoxes([])
@@ -402,9 +618,9 @@ export default function TacticalBoard({ teamId, onClose }) {
   function onTokenUp() { drag.current = null }
 
   // ── Export ─────────────────────────────────────────────────────────
-  async function exportBoard() {
+  async function buildBoardCanvas() {
     const court = courtRef.current
-    if (!court) return
+    if (!court) return null
     const rect = court.getBoundingClientRect()
 
     const off = document.createElement('canvas')
@@ -468,11 +684,31 @@ export default function TacticalBoard({ teamId, onClose }) {
       ctx.shadowBlur = 0
     }
 
+    return off
+  }
+
+  async function exportBoard() {
+    const off = await buildBoardCanvas()
+    if (!off) return
     const url = off.toDataURL('image/png')
     const a   = document.createElement('a')
     a.href     = url
     a.download = 'pizarra-tactica.png'
     a.click()
+  }
+
+  async function copyBoardImage() {
+    const off = await buildBoardCanvas()
+    if (!off) return
+    try {
+      const blob = await new Promise(res => off.toBlob(res, 'image/png'))
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+      setCopyStatus('done')
+    } catch (err) {
+      console.error('No se pudo copiar la pizarra al portapapeles:', err)
+      setCopyStatus('error')
+    }
+    setTimeout(() => setCopyStatus(null), 1800)
   }
 
   // ── Render ─────────────────────────────────────────────────────────
@@ -514,38 +750,38 @@ export default function TacticalBoard({ teamId, onClose }) {
         borderBottom: '2px solid rgba(37,99,235,0.4)',
       }}>
 
-        {/* Mode buttons */}
-        {[
-          { id: 'draw',  Icon: PencilIcon, label: 'Dibujar' },
-          { id: 'text',  Icon: TextIcon,   label: 'Texto'   },
-          { id: 'erase', Icon: EraserIcon, label: 'Borrar'  },
-          { id: 'move',  Icon: MoveIcon,   label: 'Mover'   },
-        ].map(t => {
-          const active = tool === t.id
-          return (
-            <button key={t.id} onClick={() => setTool(t.id)} style={{
-              padding: '6px 13px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
-              border:     'none',
-              background: active ? '#2563EB' : 'rgba(255,255,255,0.12)',
-              color:      active ? '#fff' : 'rgba(255,255,255,0.85)',
-              fontWeight: active ? 700 : 500,
-              fontFamily: 'Poppins, sans-serif',
-              transition: 'all 0.15s',
-              boxShadow:  active ? '0 2px 8px rgba(37,99,235,0.4)' : 'none',
-              display: 'flex', alignItems: 'center', gap: 5,
-            }}>
-              <t.Icon size={13} color={active ? '#fff' : 'rgba(255,255,255,0.85)'}/>
-              {t.label}
-            </button>
-          )
-        })}
+        {/* Mode buttons — icon-only, tooltip carries the label */}
+        <div style={{ display: 'flex', gap: 4 }}>
+          {[
+            { id: 'draw',    Icon: PencilIcon,    label: 'Dibujar'     },
+            { id: 'rect',    Icon: RectangleIcon, label: 'Rectángulo'  },
+            { id: 'polygon', Icon: PolygonIcon,   label: 'Zona libre'  },
+            { id: 'text',    Icon: TextIcon,      label: 'Texto'       },
+            { id: 'erase',   Icon: EraserIcon,    label: 'Borrar'      },
+            { id: 'move',    Icon: MoveIcon,      label: 'Mover'       },
+          ].map(t => {
+            const active = tool === t.id
+            return (
+              <button key={t.id} onClick={() => setTool(t.id)} title={t.label} aria-label={t.label} style={{
+                width: 34, height: 34, borderRadius: 10, cursor: 'pointer', padding: 0,
+                border:     'none',
+                background: active ? '#2563EB' : 'rgba(255,255,255,0.12)',
+                transition: 'all 0.15s',
+                boxShadow:  active ? '0 2px 8px rgba(37,99,235,0.4)' : 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <t.Icon size={16} color={active ? '#fff' : 'rgba(255,255,255,0.85)'}/>
+              </button>
+            )
+          })}
+        </div>
 
         <ToolDivider />
 
         {/* Color palette */}
         <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
           {PALETTE.map(c => (
-            <button key={c} onClick={() => { setColor(c); if (tool !== 'erase') setTool('draw') }} style={{
+            <button key={c} onClick={() => { setColor(c); if (!DRAW_TOOLS.includes(tool)) setTool('draw') }} style={{
               width: 22, height: 22, borderRadius: '50%', background: c, padding: 0, cursor: 'pointer',
               border: color === c ? '3px solid #2563EB' : c === '#ffffff' ? '1.5px solid rgba(255,255,255,0.5)' : '1.5px solid rgba(0,0,0,0.2)',
               transform: color === c ? 'scale(1.3)' : 'none', transition: 'transform 0.1s',
@@ -553,7 +789,7 @@ export default function TacticalBoard({ teamId, onClose }) {
             }}/>
           ))}
           <input type="color" value={color} title="Color personalizado"
-            onChange={e => { setColor(e.target.value); setTool('draw') }}
+            onChange={e => { setColor(e.target.value); if (!DRAW_TOOLS.includes(tool)) setTool('draw') }}
             style={{ width: 26, height: 26, border: '2px solid rgba(255,255,255,0.3)', borderRadius: 6, cursor: 'pointer', padding: 1, background: 'transparent' }}
           />
         </div>
@@ -563,7 +799,7 @@ export default function TacticalBoard({ teamId, onClose }) {
         {/* Pen sizes */}
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {PEN_SIZES.map(s => (
-            <button key={s} onClick={() => { setPenSize(s); if (tool !== 'erase') setTool('draw') }} style={{
+            <button key={s} onClick={() => { setPenSize(s); if (!DRAW_TOOLS.includes(tool)) setTool('draw') }} style={{
               width: s + 14, height: s + 14, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0,
               background:  penSize === s ? '#2563EB' : 'rgba(255,255,255,0.35)',
               transform:   penSize === s ? 'scale(1.2)' : 'none', transition: 'all 0.1s',
@@ -572,6 +808,25 @@ export default function TacticalBoard({ teamId, onClose }) {
             }}/>
           ))}
         </div>
+
+        {tool === 'polygon' && polyPointCount > 0 && (
+          <>
+            <ToolDivider />
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', fontFamily: 'Poppins, sans-serif' }}>
+              {polyPointCount} punto{polyPointCount !== 1 ? 's' : ''}
+            </span>
+            <button onClick={finishPolygon} disabled={polyPointCount < 3} style={{
+              padding: '6px 13px', borderRadius: 20, fontSize: 12, cursor: polyPointCount < 3 ? 'not-allowed' : 'pointer',
+              border: 'none', background: polyPointCount < 3 ? 'rgba(37,99,235,0.3)' : '#2563EB', color: '#fff',
+              fontFamily: 'Poppins, sans-serif', fontWeight: 700, opacity: polyPointCount < 3 ? 0.6 : 1,
+            }}>Cerrar forma</button>
+            <button onClick={cancelPolygon} style={{
+              padding: '6px 13px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+              border: 'none', background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)',
+              fontFamily: 'Poppins, sans-serif', fontWeight: 500,
+            }}>Cancelar</button>
+          </>
+        )}
 
         <ToolDivider />
 
@@ -582,6 +837,18 @@ export default function TacticalBoard({ teamId, onClose }) {
         }}>Limpiar</button>
 
         <ToolDivider />
+
+        <button onClick={copyBoardImage} title="Copia la imagen para pegarla (Ctrl+V) al crear un ejercicio" style={{
+          padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+          border: 'none',
+          background: copyStatus === 'done' ? '#16a34a' : copyStatus === 'error' ? '#dc2626' : 'rgba(255,255,255,0.12)',
+          color: copyStatus ? '#fff' : 'rgba(255,255,255,0.85)',
+          fontFamily: 'Poppins, sans-serif', fontWeight: 700, transition: 'all 0.15s',
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          {copyStatus === 'done' ? <CheckIcon size={13}/> : <CopyIcon size={13}/>}
+          {copyStatus === 'done' ? '¡Copiada!' : copyStatus === 'error' ? 'No se pudo copiar' : 'Copiar imagen'}
+        </button>
 
         <button onClick={exportBoard} style={{
           padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
@@ -616,7 +883,9 @@ export default function TacticalBoard({ teamId, onClose }) {
           ref={courtRef}
           style={{
             flex: 1, position: 'relative', overflow: 'hidden', background: '#172554',
-            cursor: tool === 'erase' ? ERASER_CURSOR : tool === 'draw' ? 'crosshair' : tool === 'text' ? 'text' : 'default',
+            cursor: tool === 'erase' ? ERASER_CURSOR
+              : (tool === 'draw' || tool === 'rect' || tool === 'polygon') ? 'crosshair'
+              : tool === 'text' ? 'text' : 'default',
           }}
         >
           {/* Background */}
@@ -637,6 +906,7 @@ export default function TacticalBoard({ teamId, onClose }) {
             onPointerMove={onCanvasMove}
             onPointerUp={onCanvasUp}
             onPointerLeave={onCanvasUp}
+            onDoubleClick={onCanvasDoubleClick}
           />
 
           {/* Placed tokens */}

@@ -1,5 +1,6 @@
-import React from 'react'
-import { BarChartIcon, RulerIcon, CalendarIcon, CheckIcon } from './Icons'
+import React, {useState} from 'react'
+import { BarChartIcon, RulerIcon, CalendarIcon, CheckIcon, SearchIcon } from './Icons'
+import Lightbox from './Lightbox'
 
 function getCategoryColor(category){
   const colors = {
@@ -13,6 +14,8 @@ function getCategoryColor(category){
 }
 
 export default function ExerciseCard({exercise, onDelete, onOpenDetail, onEdit, selectable, selected, onToggleSelect}){
+  const [showLightbox, setShowLightbox] = useState(false)
+
   return (
     <div
       className={`card exercise-card${selectable ? ' exercise-card-selectable' : ''}${selected ? ' exercise-card-selected' : ''}`}
@@ -27,7 +30,15 @@ export default function ExerciseCard({exercise, onDelete, onOpenDetail, onEdit, 
           {selected && <CheckIcon size={13}/>}
         </div>
       )}
-      {exercise.photo_url && <img src={exercise.photo_url} alt={exercise.name} loading="lazy" decoding="async" />}
+      {exercise.photo_url && (
+        <div
+          className="exercise-photo-wrap"
+          onClick={e => { if (selectable) return; e.stopPropagation(); setShowLightbox(true) }}
+        >
+          <img src={exercise.photo_url} alt={exercise.name} loading="lazy" decoding="async" />
+          {!selectable && <div className="exercise-photo-zoom"><SearchIcon size={16}/></div>}
+        </div>
+      )}
       <div className="exercise-card-body">
         <h3 style={{margin:'0 0 4px'}}>{exercise.name}</h3>
         {exercise.category && <span className="exercise-card-category" style={{background:getCategoryColor(exercise.category)}}>{exercise.category}</span>}
@@ -43,6 +54,9 @@ export default function ExerciseCard({exercise, onDelete, onOpenDetail, onEdit, 
           {onEdit && <button className="btn" onClick={(e)=>{e.stopPropagation(); onEdit()}} style={{marginTop:0,flex:'1 1 120px'}}>Editar</button>}
           {onDelete && <button className="btn btn-danger" onClick={(e)=>{e.stopPropagation(); onDelete()}} style={{marginTop:0,flex:'1 1 120px'}}>Eliminar</button>}
         </div>
+      )}
+      {showLightbox && (
+        <Lightbox src={exercise.photo_url} alt={exercise.name} onClose={() => setShowLightbox(false)} />
       )}
     </div>
   )

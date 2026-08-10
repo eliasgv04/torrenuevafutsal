@@ -277,8 +277,8 @@ create policy "team_access" on rival_team_stats for all
   with check (public.user_has_match_access(match_id));
 
 -- Public "solicitar acceso" form writes here. Anyone can INSERT (that's the
--- point — it's the public entry point), but nobody except an admin working
--- from the Supabase dashboard (which bypasses RLS) can read, approve or
+-- point — it's the public entry point), but nobody except an admin account
+-- (see admin_users below, reviewed from AdminPanel.jsx) can read, approve or
 -- reject a request. A pending row grants no access to anything by itself.
 create table if not exists access_requests (
   id uuid primary key default gen_random_uuid(),
@@ -329,3 +329,54 @@ drop trigger if exists trg_notify_access_request on access_requests;
 create trigger trg_notify_access_request
   after insert on access_requests
   for each row execute function public.notify_access_request();
+
+-- ========== NEW: ADMIN ROLE ==========
+-- A small set of accounts (currently one dedicated login) that can see every
+-- team and manage access requests, on top of the normal per-team
+-- restriction everyone else has. See supabase/add-admin-role.sql,
+-- supabase/functions/admin-create-account/index.ts and AdminPanel.jsx.
+
+create table if not exists admin_users (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  created_at timestamp with time zone default timezone('utc', now())
+);
+
+alter table admin_users enable row level security;
+drop policy if exists "select_own_admin_row" on admin_users;
+create policy "select_own_admin_row" on admin_users
+  for select using (user_id = auth.uid());
+-- No insert/update/delete policy for authenticated/anon — admin status can
+-- only be granted via service_role (an admin script), never by the app.
+
+create or replace function public.is_admin()
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists(select 1 from admin_users where user_id = auth.uid());
+$$;
+
+grant execute on function public.is_admin() to authenticated, anon;
+
+-- Admins see every team, alongside (not replacing) the normal per-team policy.
+drop policy if exists "admin_select_all_teams" on teams;
+create policy "admin_select_all_teams" on teams
+  for select using (public.is_admin());
+
+-- Admins can link any account to any team (used when approving a request).
+drop policy if exists "admin_select_all_team_users" on team_users;
+create policy "admin_select_all_team_users" on team_users
+  for select using (public.is_admin());
+drop policy if exists "admin_insert_team_users" on team_users;
+create policy "admin_insert_team_users" on team_users
+  for insert with check (public.is_admin());
+
+-- Admins can read and resolve access requests.
+drop policy if exists "admin_select_access_requests" on access_requests;
+create policy "admin_select_access_requests" on access_requests
+  for select using (public.is_admin());
+drop policy if exists "admin_update_access_requests" on access_requests;
+create policy "admin_update_access_requests" on access_requests
+  for update using (public.is_admin());

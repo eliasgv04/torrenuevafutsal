@@ -1023,14 +1023,54 @@ export const api = {
 
   // Public "solicitar acceso" form. Deliberately never .select()s the row
   // back — RLS only grants INSERT here, no SELECT, so requesting the row
-  // back would fail. Whoever reviews requests does it from the Supabase
-  // dashboard (which bypasses RLS), not from inside the app.
+  // back would fail. Admin accounts review/approve requests from AdminPanel
+  // (see the admin.* helpers below); no other account can read this table.
   async requestAccess({team_name, contact_name, contact_email, message}){
     if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
     const { error } = await supabase.from('access_requests').insert({
       team_name, contact_name, contact_email, message: message || null
     })
     if(error) throw error
+  },
+
+  // ── Admin ──────────────────────────────────────────────────────────
+  async isAdmin(){
+    if(!HAS_SUPABASE) return false
+    const { data, error } = await supabase.rpc('is_admin')
+    if(error) return false
+    return !!data
+  },
+
+  async getAllTeamsAdmin(){
+    if(!HAS_SUPABASE) return []
+    const { data, error } = await supabase.from('teams').select('*').order('name')
+    if(error) throw error
+    return data
+  },
+
+  async getAccessRequests(){
+    if(!HAS_SUPABASE) return []
+    const { data, error } = await supabase.from('access_requests').select('*').order('created_at', {ascending:false})
+    if(error) throw error
+    return data
+  },
+
+  async rejectAccessRequest(id){
+    if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
+    const { error } = await supabase.from('access_requests').update({status:'rejected'}).eq('id', id)
+    if(error) throw error
+  },
+
+  // Runs server-side (Edge Function) since creating an auth user needs the
+  // service_role key, which must never reach the browser bundle.
+  async adminCreateAccount({email, password, team_id, request_id}){
+    if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
+    const { data, error } = await supabase.functions.invoke('admin-create-account', {
+      body: {email, password, team_id: team_id || null, request_id: request_id || null}
+    })
+    if(error) throw error
+    if(data?.error) throw new Error(data.error)
+    return data
   }
 }
 
