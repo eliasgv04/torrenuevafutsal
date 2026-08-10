@@ -12,6 +12,7 @@ export default function AdminPanel(){
   const [approving,setApproving] = useState(null)
   const [rejecting,setRejecting] = useState(null)
   const [successMsg,setSuccessMsg] = useState('')
+  const [emailWarning,setEmailWarning] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -29,7 +30,12 @@ export default function AdminPanel(){
   async function handleApprove({email, password, team_id}){
     const result = await api.adminCreateAccount({email, password, team_id, request_id: approving.id})
     setApproving(null)
-    setSuccessMsg(`Cuenta creada: ${result.email}`)
+    setEmailWarning(!result.emailSent)
+    setSuccessMsg(
+      result.emailSent
+        ? `Cuenta creada: ${result.email}. Le hemos enviado las credenciales por email.`
+        : `Cuenta creada: ${result.email}. No se pudo enviar el email — pásaselas tú a mano.`
+    )
     load()
   }
 
@@ -49,7 +55,12 @@ export default function AdminPanel(){
       <p style={{color:'rgba(255,255,255,0.7)', margin:'0 0 24px'}}>Solicitudes de acceso y equipos existentes.</p>
 
       {successMsg && (
-        <p style={{color:'#16a34a', background:'rgba(22,163,74,0.12)', border:'1px solid rgba(22,163,74,0.3)', padding:'10px 14px', borderRadius:10, fontWeight:700}}>
+        <p style={{
+          color: emailWarning ? '#f59e0b' : '#16a34a',
+          background: emailWarning ? 'rgba(245,158,11,0.12)' : 'rgba(22,163,74,0.12)',
+          border: `1px solid ${emailWarning ? 'rgba(245,158,11,0.3)' : 'rgba(22,163,74,0.3)'}`,
+          padding:'10px 14px', borderRadius:10, fontWeight:700,
+        }}>
           {successMsg}
         </p>
       )}
