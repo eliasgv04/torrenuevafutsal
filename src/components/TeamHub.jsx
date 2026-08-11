@@ -6,7 +6,8 @@ import {
   TrophyIcon,
   UsersIcon,
   BoardIcon,
-  TrendingUpIcon
+  TrendingUpIcon,
+  SearchIcon
 } from './Icons'
 
 export default function TeamHub({
@@ -19,7 +20,8 @@ export default function TeamHub({
   onOpenRoster,
   onOpenBoard,
   onOpenStats,
-  onOpenCalendar
+  onOpenCalendar,
+  onOpenSearch
 }){
   const cards = [
     {
@@ -78,9 +80,14 @@ export default function TeamHub({
           </button>
           <h2 style={{display:'inline-block',marginLeft:16,marginTop:0}}>{team.name}</h2>
         </div>
-        <button className="btn btn-icon-only" onClick={onOpenCalendar} title="Calendario" aria-label="Calendario">
-          <CalendarIcon size={18}/>
-        </button>
+        <div style={{display:'flex', gap:8}}>
+          <button className="btn btn-icon-only" onClick={onOpenSearch} title="Buscar" aria-label="Buscar">
+            <SearchIcon size={18}/>
+          </button>
+          <button className="btn btn-icon-only" onClick={onOpenCalendar} title="Calendario" aria-label="Calendario">
+            <CalendarIcon size={18}/>
+          </button>
+        </div>
       </div>
 
       <div className="hub-grid">

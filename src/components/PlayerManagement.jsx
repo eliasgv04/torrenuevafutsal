@@ -26,7 +26,7 @@ function sumMatches(matches){
   }), { ...EMPTY_TOTALS })
 }
 
-export default function PlayerManagement({ teamId, onClose }) {
+export default function PlayerManagement({ teamId, onClose, initialPlayerId }) {
   const [players, setPlayers] = useState([])
   const [trainings, setTrainings] = useState([])
   const [showForm, setShowForm] = useState(false)
@@ -84,6 +84,15 @@ export default function PlayerManagement({ teamId, onClose }) {
       }
     }
   }
+
+  // Deep-linked here from the global search — auto-open the matching
+  // player's detail popup once the roster has loaded.
+  useEffect(() => {
+    if (!initialPlayerId || players.length === 0) return
+    const match = players.find((p) => p.id === initialPlayerId)
+    if (match) openDetail(match)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPlayerId, players])
 
   const positions = ['Portero', 'Cierre', 'Ala Diestro', 'Ala Zurdo', 'Pivot']
   const positionColors = {

@@ -8,12 +8,13 @@ export default function CreateExerciseModal({onCreate, onCancel, onSave, initial
   const [preview,setPreview] = useState(initial?.photo_url || null)
   const [category,setCategory] = useState(initial?.category || 'Inicio balón')
   const [dimensions,setDimensions] = useState(initial?.dimensions || '')
+  const [isPublic,setIsPublic] = useState(initial?.is_public || false)
   const [dragOver,setDragOver] = useState(false)
   const fileInputRef = useRef(null)
 
   function submit(){
     if(!name) return alert('Nombre requerido')
-    const payload = {name,objective,file,category,dimensions}
+    const payload = {name,objective,file,category,dimensions,is_public:isPublic}
     if(onSave) return onSave(payload)
     if(onCreate) return onCreate(payload)
   }
@@ -110,6 +111,15 @@ export default function CreateExerciseModal({onCreate, onCancel, onSave, initial
         </datalist>
         <label>Dimensiones (ej: 40x20)</label>
         <input value={dimensions} onChange={e=>setDimensions(e.target.value)} placeholder="Ej: 40x20" />
+
+        <label className="exercise-public-toggle">
+          <input type="checkbox" checked={isPublic} onChange={e=>setIsPublic(e.target.checked)} />
+          <span>
+            Hacer público
+            <small>Visible para otros entrenadores en el Foro de ejercicios</small>
+          </span>
+        </label>
+
         <div className="modal-buttons">
           <button className="btn btn-primary" onClick={submit}>{onSave ? 'Guardar cambios' : 'Crear ejercicio'}</button>
           <button className="btn btn-cancel" onClick={onCancel}>Cancelar</button>

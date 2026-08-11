@@ -6,6 +6,7 @@ import ChangePasswordModal from './components/ChangePasswordModal'
 import LandingPage from './components/LandingPage'
 import PitchLines from './components/PitchLines'
 import AdminPanel from './components/AdminPanel'
+import ProfileMenu from './components/ProfileMenu'
 import { ArrowLeftIcon } from './components/Icons'
 
 function AuthBrand() {
@@ -247,12 +248,12 @@ export default function App() {
         <img src="./futsalkit-icon.svg" alt="FutsalKit" className="logo" />
         <h1>FutsalKit{isAdmin ? ' · Admin' : ''}</h1>
         <div className="app-header-actions" style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
-          <button className="btn btn-secondary" onClick={() => setShowChangePassword(true)}>
-            Cambiar contraseña
-          </button>
-          <button className="btn btn-danger" onClick={handleLogout}>
-            Cerrar sesión
-          </button>
+          <ProfileMenu
+            email={session.user.email}
+            isAdmin={isAdmin}
+            onChangePassword={() => setShowChangePassword(true)}
+            onLogout={handleLogout}
+          />
         </div>
       </header>
       <main>

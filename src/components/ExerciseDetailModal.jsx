@@ -1,8 +1,21 @@
 import React, {useMemo, useState} from 'react'
 import Lightbox from './Lightbox'
+import { EyeIcon, EyeOffIcon } from './Icons'
 
-export default function ExerciseDetailModal({exercise, trainings, onClose, onEdit}){
+export default function ExerciseDetailModal({exercise, trainings, onClose, onEdit, onToggleVisibility}){
   const [showLightbox, setShowLightbox] = useState(false)
+  const [togglingVisibility, setTogglingVisibility] = useState(false)
+
+  async function handleToggleVisibility(){
+    if(!onToggleVisibility || togglingVisibility) return
+    setTogglingVisibility(true)
+    try{
+      await onToggleVisibility()
+    }finally{
+      setTogglingVisibility(false)
+    }
+  }
+
   const usedIn = useMemo(() => {
     return (trainings || [])
       .map((training) => {
@@ -16,9 +29,23 @@ export default function ExerciseDetailModal({exercise, trainings, onClose, onEdi
   return (
     <div className="modal-overlay">
       <div className="modal-content" style={{maxWidth:760}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'start'}}>
-          <h3>{exercise.name}</h3>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'start',flexWrap:'wrap',gap:8}}>
+          <div>
+            <h3 style={{margin:'0 0 4px'}}>{exercise.name}</h3>
+            {exercise.is_public && <span className="exercise-card-category" style={{background:'#2563EB'}}>Público</span>}
+          </div>
           <div style={{display:'flex',gap:8}}>
+            {onToggleVisibility && (
+              <button
+                className="btn btn-icon-only"
+                onClick={handleToggleVisibility}
+                disabled={togglingVisibility}
+                title={exercise.is_public ? 'Hacer privado' : 'Hacer público'}
+                aria-label={exercise.is_public ? 'Hacer privado' : 'Hacer público'}
+              >
+                {exercise.is_public ? <EyeIcon size={16}/> : <EyeOffIcon size={16}/>}
+              </button>
+            )}
             {onEdit && <button className="btn" onClick={()=>onEdit()}>Editar</button>}
             <button className="btn btn-cancel" onClick={onClose}>Cerrar</button>
           </div>

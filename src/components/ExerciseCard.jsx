@@ -42,6 +42,7 @@ export default function ExerciseCard({exercise, onDelete, onOpenDetail, onEdit, 
       <div className="exercise-card-body">
         <h3 style={{margin:'0 0 4px'}}>{exercise.name}</h3>
         {exercise.category && <span className="exercise-card-category" style={{background:getCategoryColor(exercise.category)}}>{exercise.category}</span>}
+        {exercise.is_public && <span className="exercise-card-category" style={{background:'#2563EB'}}>Público</span>}
         <p className="small" style={{margin:'4px 0 0'}}>{exercise.objective || 'Sin objetivo'}</p>
       </div>
       <div className="exercise-card-stats">

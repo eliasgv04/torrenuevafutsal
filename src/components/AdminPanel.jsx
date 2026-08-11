@@ -1,24 +1,30 @@
 import React, {useState, useEffect, useCallback} from 'react'
 import { api } from '../lib/api'
 import ApproveRequestModal from './ApproveRequestModal'
+import ResetPasswordModal from './ResetPasswordModal'
 import ConfirmModal from './ConfirmModal'
+import { TrashIcon, XIcon } from './Icons'
 
 const STATUS_LABEL = { approved: 'Aprobada', rejected: 'Rechazada' }
 
 export default function AdminPanel(){
   const [teams,setTeams] = useState([])
   const [requests,setRequests] = useState([])
+  const [accounts,setAccounts] = useState([])
   const [loading,setLoading] = useState(true)
   const [approving,setApproving] = useState(null)
   const [rejecting,setRejecting] = useState(null)
+  const [deletingAccount,setDeletingAccount] = useState(null)
+  const [resettingAccount,setResettingAccount] = useState(null)
   const [successMsg,setSuccessMsg] = useState('')
   const [emailWarning,setEmailWarning] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [t, r] = await Promise.all([api.getAllTeamsAdmin(), api.getAccessRequests()])
+    const [t, r, a] = await Promise.all([api.getAllTeamsAdmin(), api.getAccessRequests(), api.getAllAccounts()])
     setTeams(t)
     setRequests(r)
+    setAccounts(a)
     setLoading(false)
   }, [])
 
@@ -42,6 +48,38 @@ export default function AdminPanel(){
   async function handleReject(){
     await api.rejectAccessRequest(rejecting.id)
     setRejecting(null)
+    load()
+  }
+
+  async function handleAddTeam(userId, teamId){
+    await api.addTeamToAccount(teamId, userId)
+    load()
+  }
+
+  async function handleRemoveTeam(userId, teamId){
+    await api.removeTeamFromAccount(teamId, userId)
+    load()
+  }
+
+  async function handleDeleteAccount(){
+    await api.deleteAccount(deletingAccount.id)
+    setDeletingAccount(null)
+    load()
+  }
+
+  async function handleResetPassword({password, notifyEmail}){
+    const result = await api.resetAccountPassword({
+      user_id: resettingAccount.id, new_password: password, notify_email: notifyEmail,
+    })
+    setResettingAccount(null)
+    setEmailWarning(!!notifyEmail && !result.emailSent)
+    setSuccessMsg(
+      notifyEmail
+        ? (result.emailSent
+            ? `Contraseña restablecida para ${result.email}. Le hemos avisado por email.`
+            : `Contraseña restablecida para ${result.email}. No se pudo enviar el email — pásasela tú a mano.`)
+        : `Contraseña restablecida para ${result.email}.`
+    )
     load()
   }
 
@@ -102,6 +140,27 @@ export default function AdminPanel(){
         )}
       </section>
 
+      <section style={{marginTop:32}}>
+        <h3 style={{color:'#fff', fontFamily:"'Poppins', sans-serif"}}>Cuentas ({accounts.length})</h3>
+        {accounts.length === 0 ? (
+          <p style={{color:'rgba(255,255,255,0.6)'}}>Todavía no hay cuentas creadas.</p>
+        ) : (
+          <div style={{display:'grid', gap:12}}>
+            {accounts.map(acc => (
+              <AccountCard
+                key={acc.id}
+                account={acc}
+                allTeams={teams}
+                onAddTeam={(teamId)=>handleAddTeam(acc.id, teamId)}
+                onRemoveTeam={(teamId)=>handleRemoveTeam(acc.id, teamId)}
+                onDelete={()=>setDeletingAccount(acc)}
+                onResetPassword={()=>setResettingAccount(acc)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
       {resolved.length > 0 && (
         <section style={{marginTop:32}}>
           <h3 style={{color:'#fff', fontFamily:"'Poppins', sans-serif"}}>Solicitudes resueltas ({resolved.length})</h3>
@@ -134,6 +193,81 @@ export default function AdminPanel(){
           onConfirm={handleReject}
           onCancel={()=>setRejecting(null)}
         />
+      )}
+
+      {deletingAccount && (
+        <ConfirmModal
+          title="Eliminar cuenta"
+          message={`¿Seguro que quieres eliminar la cuenta "${deletingAccount.email}"? Perderá el acceso a todos sus equipos.`}
+          onConfirm={handleDeleteAccount}
+          onCancel={()=>setDeletingAccount(null)}
+        />
+      )}
+
+      {resettingAccount && (
+        <ResetPasswordModal
+          account={resettingAccount}
+          onSubmit={handleResetPassword}
+          onCancel={()=>setResettingAccount(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function AccountCard({account, allTeams, onAddTeam, onRemoveTeam, onDelete, onResetPassword}){
+  const linkedIds = new Set(account.teams.map(t => t.id))
+  const availableTeams = allTeams.filter(t => !linkedIds.has(t.id))
+  const [selectedTeam, setSelectedTeam] = useState('')
+
+  function addSelected(){
+    if(!selectedTeam) return
+    onAddTeam(selectedTeam)
+    setSelectedTeam('')
+  }
+
+  return (
+    <div className="card" style={{padding:16}}>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'start', gap:8, flexWrap:'wrap'}}>
+        <div>
+          <strong>{account.email}</strong>
+          {account.is_admin && (
+            <span style={{marginLeft:8, fontSize:11, fontWeight:700, color:'#2563EB', background:'rgba(37,99,235,0.12)', padding:'2px 8px', borderRadius:999}}>ADMIN</span>
+          )}
+          <p className="small" style={{margin:'4px 0', color:'#999'}}>Creada el {new Date(account.created_at).toLocaleDateString('es-ES')}</p>
+        </div>
+        <div style={{display:'flex', gap:8, flexShrink:0}}>
+          <button className="btn btn-secondary btn-secondary-small" style={{marginTop:0}} onClick={onResetPassword}>
+            Restablecer contraseña
+          </button>
+          {!account.is_admin && (
+            <button className="btn btn-icon-only" title="Eliminar cuenta" aria-label="Eliminar cuenta" onClick={onDelete} style={{background:'rgba(220,38,38,0.1)', color:'#dc2626'}}>
+              <TrashIcon size={15}/>
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div style={{display:'flex', flexWrap:'wrap', gap:6, marginTop:10}}>
+        {account.teams.length === 0 && <span className="small" style={{color:'#999'}}>Sin equipos vinculados</span>}
+        {account.teams.map(t => (
+          <span key={t.id} style={{display:'inline-flex', alignItems:'center', gap:6, fontSize:12, fontWeight:600, background:'rgba(30,58,138,0.08)', color:'var(--green-dark)', padding:'4px 6px 4px 10px', borderRadius:999}}>
+            {t.name}
+            <button onClick={()=>onRemoveTeam(t.id)} title={`Quitar acceso a ${t.name}`} aria-label={`Quitar acceso a ${t.name}`} style={{width:16, height:16, borderRadius:'50%', border:'none', background:'rgba(0,0,0,0.08)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', padding:0}}>
+              <XIcon size={9}/>
+            </button>
+          </span>
+        ))}
+      </div>
+
+      {availableTeams.length > 0 && (
+        <div style={{display:'flex', gap:8, marginTop:10}}>
+          <select value={selectedTeam} onChange={e=>setSelectedTeam(e.target.value)} style={{flex:1, margin:0}}>
+            <option value="">+ Vincular a un equipo...</option>
+            {availableTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          <button className="btn btn-secondary btn-secondary-small" style={{marginTop:0}} disabled={!selectedTeam} onClick={addSelected}>Añadir</button>
+        </div>
       )}
     </div>
   )

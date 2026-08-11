@@ -16,6 +16,8 @@ import MatchManagement from "./MatchManagement";
 import MatchTracker from "./MatchTracker";
 import TacticalBoard from "./TacticalBoard";
 import TeamCalendar from "./TeamCalendar";
+import GlobalSearchModal from "./GlobalSearchModal";
+import ExerciseForumModal from "./ExerciseForumModal";
 import { ArrowLeftIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon, DumbbellIcon, LoaderIcon, CopyIcon, PasteIcon, CheckSquareIcon, XIcon } from "./Icons";
 import { getExerciseClipboard, setExerciseClipboard } from "../lib/exerciseClipboard";
 
@@ -46,6 +48,26 @@ export default function TeamPage({ team, onBack }) {
   const [pasting, setPasting] = useState(false);
   const [visibleCount, setVisibleCount] = useState(30);
   const EXERCISES_PAGE_SIZE = 30;
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchPlayerId, setSearchPlayerId] = useState(null);
+  const [showForum, setShowForum] = useState(false);
+
+  function handleSelectPlayerFromSearch(player) {
+    setSearchPlayerId(player.id);
+    setView("roster");
+    setShowSearch(false);
+  }
+
+  function handleSelectExerciseFromSearch(exercise) {
+    setDetailFor(exercise);
+    setView("exercises");
+    setShowSearch(false);
+  }
+
+  function handleSelectTrainingFromSearch() {
+    setView("trainings");
+    setShowSearch(false);
+  }
 
   const normalizeExerciseName = (value) =>
     String(value || "")
@@ -71,6 +93,16 @@ export default function TeamPage({ team, onBack }) {
     api.getPlayers(team.id).then(setPlayers);
     loadTrainingHistory(team.id);
   }, [team]);
+
+  async function onToggleExerciseVisibility(exercise) {
+    const updated = await api.updateExercise(exercise.id, { is_public: !exercise.is_public });
+    setExercises((current) =>
+      current.map((item) => (item.id === exercise.id ? { ...item, is_public: updated.is_public } : item)),
+    );
+    setDetailFor((current) =>
+      current && current.id === exercise.id ? { ...current, is_public: updated.is_public } : current,
+    );
+  }
 
   async function onCreate(data) {
     if (isDuplicateExerciseName(data.name)) {
@@ -343,6 +375,7 @@ export default function TeamPage({ team, onBack }) {
           onOpenBoard={() => setView("board")}
           onOpenStats={() => setView("stats")}
           onOpenCalendar={() => setView("calendar")}
+          onOpenSearch={() => setShowSearch(true)}
         />
       )}
 
@@ -387,6 +420,12 @@ export default function TeamPage({ team, onBack }) {
                 onClick={() => setShowExerciseFilters((s) => !s)}
               >
                 Más filtros {showExerciseFilters ? <ChevronUpIcon size={13}/> : <ChevronDownIcon size={13}/>}
+              </button>
+              <button
+                className="btn"
+                onClick={() => setShowForum(true)}
+              >
+                Foro
               </button>
               <button
                 className="btn btn-primary"
@@ -542,7 +581,7 @@ export default function TeamPage({ team, onBack }) {
       )}
 
       {view === "roster" && (
-        <PlayerManagement teamId={team.id} onClose={() => setView("hub")} />
+        <PlayerManagement teamId={team.id} onClose={() => setView("hub")} initialPlayerId={searchPlayerId} />
       )}
 
       {view === "matches" && (
@@ -655,6 +694,21 @@ export default function TeamPage({ team, onBack }) {
             setDetailFor(null);
             setEditingExercise(detailFor);
           }}
+          onToggleVisibility={() => onToggleExerciseVisibility(detailFor)}
+        />
+      )}
+      {showForum && (
+        <ExerciseForumModal onClose={() => setShowForum(false)} />
+      )}
+      {showSearch && (
+        <GlobalSearchModal
+          players={players}
+          exercises={exercises}
+          trainings={trainings}
+          onClose={() => setShowSearch(false)}
+          onSelectPlayer={handleSelectPlayerFromSearch}
+          onSelectExercise={handleSelectExerciseFromSearch}
+          onSelectTraining={handleSelectTrainingFromSearch}
         />
       )}
     </div>

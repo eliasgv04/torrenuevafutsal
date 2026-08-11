@@ -365,13 +365,17 @@ drop policy if exists "admin_select_all_teams" on teams;
 create policy "admin_select_all_teams" on teams
   for select using (public.is_admin());
 
--- Admins can link any account to any team (used when approving a request).
+-- Admins can link/unlink any account to any team (used when approving a
+-- request, or managing an existing account from AdminPanel.jsx).
 drop policy if exists "admin_select_all_team_users" on team_users;
 create policy "admin_select_all_team_users" on team_users
   for select using (public.is_admin());
 drop policy if exists "admin_insert_team_users" on team_users;
 create policy "admin_insert_team_users" on team_users
   for insert with check (public.is_admin());
+drop policy if exists "admin_delete_team_users" on team_users;
+create policy "admin_delete_team_users" on team_users
+  for delete using (public.is_admin());
 
 -- Admins can read and resolve access requests.
 drop policy if exists "admin_select_access_requests" on access_requests;
@@ -380,3 +384,39 @@ create policy "admin_select_access_requests" on access_requests
 drop policy if exists "admin_update_access_requests" on access_requests;
 create policy "admin_update_access_requests" on access_requests
   for update using (public.is_admin());
+
+-- ========== NEW: EXERCISE FORUM ==========
+-- An exercise is private by default (normal team-scoped RLS). A coach can
+-- flag one as public, and it becomes read-only visible to every other
+-- logged-in coach via get_public_exercises() — a browsing-only view, no
+-- editing/importing. See ExerciseForumModal.jsx.
+alter table exercises add column if not exists is_public boolean not null default false;
+
+-- Bypasses the normal team_access RLS on purpose, but only returns the
+-- narrow set of fields the forum shows, and only for rows already
+-- explicitly marked public by their own team.
+create or replace function public.get_public_exercises()
+returns table (
+  id uuid,
+  name text,
+  objective text,
+  photo_url text,
+  category text,
+  dimensions text,
+  created_at timestamp with time zone,
+  team_id uuid,
+  team_name text
+)
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select e.id, e.name, e.objective, e.photo_url, e.category, e.dimensions, e.created_at, e.team_id, t.name as team_name
+  from exercises e
+  join teams t on t.id = e.team_id
+  where e.is_public = true
+  order by e.created_at desc;
+$$;
+
+grant execute on function public.get_public_exercises() to authenticated;

@@ -267,7 +267,7 @@ export const api = {
         const data = await withRetry(() =>
           supabase
             .from('exercises')
-            .select('id,name,objective,photo_url,category,dimensions,created_at,team_id')
+            .select('id,name,objective,photo_url,category,dimensions,created_at,team_id,is_public')
             .eq('team_id', teamId)
             .order('created_at', {ascending:false})
             .then(r => { if(r.error) throw r.error; return r.data })
@@ -281,12 +281,12 @@ export const api = {
     return items
   },
 
-  async createExercise({team_id,name,objective,file,category,dimensions,photo_url:existingPhotoUrl}){
+  async createExercise({team_id,name,objective,file,category,dimensions,photo_url:existingPhotoUrl,is_public}){
     let photo_url = existingPhotoUrl || null
     if(file) photo_url = await uploadPhoto(file)
     try{
       if(HAS_SUPABASE){
-        const { data, error } = await supabase.from('exercises').insert({team_id,name,objective,photo_url,category,dimensions}).select().single()
+        const { data, error } = await supabase.from('exercises').insert({team_id,name,objective,photo_url,category,dimensions,is_public:!!is_public}).select().single()
         if(error) throw error
         return { ...data, dimensions }
       }
@@ -294,18 +294,18 @@ export const api = {
       console.error('Supabase error, falling back to localStorage:', e)
     }
     const items = lsGet(LS_EXERCISES)
-    const ex = {id:uid(), team_id, name, objective, photo_url, category, dimensions, created_at:new Date().toISOString()}
+    const ex = {id:uid(), team_id, name, objective, photo_url, category, dimensions, is_public:!!is_public, created_at:new Date().toISOString()}
     items.unshift(ex)
     lsSet(LS_EXERCISES, items)
     return ex
   },
 
-  async updateExercise(exerciseId, {name,objective,category,file,dimensions}){
+  async updateExercise(exerciseId, {name,objective,category,file,dimensions,is_public}){
     let photo_url = null
     if(file) photo_url = await uploadPhoto(file)
     try{
       if(HAS_SUPABASE){
-        const payload = { name, objective, category, dimensions }
+        const payload = { name, objective, category, dimensions, is_public:!!is_public }
         if(photo_url) payload.photo_url = photo_url
         const { data, error } = await supabase.from('exercises').update(payload).eq('id', exerciseId).select().single()
         if(error) throw error
@@ -318,12 +318,19 @@ export const api = {
     const items = lsGet(LS_EXERCISES)
     const idx = items.findIndex(i=>i.id===exerciseId)
     if(idx>=0){
-      items[idx] = { ...items[idx], name, objective, category, dimensions }
+      items[idx] = { ...items[idx], name, objective, category, dimensions, is_public:!!is_public }
       if(photo_url) items[idx].photo_url = photo_url
       lsSet(LS_EXERCISES, items)
       return items[idx]
     }
     return null
+  },
+
+  async getPublicExercises(){
+    if(!HAS_SUPABASE) return []
+    const { data, error } = await supabase.rpc('get_public_exercises')
+    if(error) throw error
+    return data
   },
 
   async deleteExercise(exerciseId){
@@ -1071,6 +1078,48 @@ export const api = {
     if(error) throw error
     if(data?.error) throw new Error(data.error)
     return data
+  },
+
+  // auth.users isn't exposed via PostgREST, so listing/deleting accounts
+  // also goes through an Edge Function with the service_role key.
+  async getAllAccounts(){
+    if(!HAS_SUPABASE) return []
+    const { data, error } = await supabase.functions.invoke('admin-accounts', { body: {action:'list'} })
+    if(error) throw error
+    if(data?.error) throw new Error(data.error)
+    return data.accounts
+  },
+
+  async deleteAccount(userId){
+    if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
+    const { data, error } = await supabase.functions.invoke('admin-accounts', { body: {action:'delete', user_id:userId} })
+    if(error) throw error
+    if(data?.error) throw new Error(data.error)
+    return data
+  },
+
+  async resetAccountPassword({user_id, new_password, notify_email}){
+    if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
+    const { data, error } = await supabase.functions.invoke('admin-accounts', {
+      body: {action:'reset_password', user_id, new_password, notify_email: notify_email || null}
+    })
+    if(error) throw error
+    if(data?.error) throw new Error(data.error)
+    return data
+  },
+
+  // Adding/removing a team link is a plain table write — RLS already lets
+  // an admin do this directly, no service_role needed.
+  async addTeamToAccount(teamId, userId){
+    if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
+    const { error } = await supabase.from('team_users').insert({team_id:teamId, user_id:userId})
+    if(error) throw error
+  },
+
+  async removeTeamFromAccount(teamId, userId){
+    if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
+    const { error } = await supabase.from('team_users').delete().eq('team_id', teamId).eq('user_id', userId)
+    if(error) throw error
   }
 }
 
