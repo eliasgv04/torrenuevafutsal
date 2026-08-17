@@ -1029,17 +1029,39 @@ export const api = {
       .sort((a,b)=>new Date(b.match_date||0) - new Date(a.match_date||0))
   },
 
-  // Public "solicitar acceso" form. Deliberately never .select()s the row
-  // back — RLS only grants INSERT here, no SELECT, so requesting the row
-  // back would fail. Admin accounts review/approve requests from AdminPanel
-  // (see the admin.* helpers below); no other account can read this table.
-  async requestAccess({team_name, contact_name, contact_email, message, privacy_accepted}){
-    if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
-    if(!privacy_accepted) throw new Error('Debes aceptar la política de privacidad')
-    const { error } = await supabase.from('access_requests').insert({
-      team_name, contact_name, contact_email, message: message || null, privacy_accepted: true
-    })
+  // Access requests are no longer submitted from the public app (signup is
+  // now self-service, gated by billing instead) — getAccessRequests /
+  // rejectAccessRequest / adminCreateAccount below stay only as an internal
+  // tool for the admin to manually create a special-case account.
+
+  // ── Billing ────────────────────────────────────────────────────────
+  // Whether the logged-in account has paid access this season or an admin
+  // marked it free — the gate App.jsx checks before showing the dashboard.
+  async hasActivePlan(){
+    if(!HAS_SUPABASE) return true // localStorage fallback mode: no billing to enforce
+    const { data, error } = await supabase.rpc('user_has_active_plan')
+    if(error) return false
+    return !!data
+  },
+
+  async getMySubscription(){
+    if(!HAS_SUPABASE) return null
+    const { data: { user } } = await supabase.auth.getUser()
+    if(!user) return null
+    const { data, error } = await supabase.from('subscriptions').select('*').eq('user_id', user.id).maybeSingle()
     if(error) throw error
+    return data
+  },
+
+  // Creates a Stripe Checkout session (one-time payment) for the given plan
+  // and returns its hosted URL to redirect the browser to. Requires the
+  // stripe-checkout Edge Function, wired up once Stripe API keys are set.
+  async startCheckout(planId){
+    if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
+    const { data, error } = await supabase.functions.invoke('stripe-checkout', { body: { plan: planId } })
+    if(error) throw error
+    if(data?.error) throw new Error(data.error)
+    return data
   },
 
   // ── Admin ──────────────────────────────────────────────────────────
@@ -1122,6 +1144,18 @@ export const api = {
     if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
     const { error } = await supabase.from('team_users').delete().eq('team_id', teamId).eq('user_id', userId)
     if(error) throw error
+  },
+
+  // Manual override — grants/revokes free access or corrects a plan by
+  // hand, independent of Stripe (e.g. the club's own team).
+  async setAccountPlan({user_id, status, plan, max_teams}){
+    if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
+    const { data, error } = await supabase.functions.invoke('admin-accounts', {
+      body: {action:'set_plan', user_id, status, plan: plan || null, max_teams: max_teams ?? null}
+    })
+    if(error) throw error
+    if(data?.error) throw new Error(data.error)
+    return data
   }
 }
 

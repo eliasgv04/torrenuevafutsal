@@ -355,6 +355,100 @@ main{padding:32px 24px;flex:1}
   .landing-hero, .landing-logo, .landing-features{ animation:none; }
 }
 
+.plans-section{
+  position:relative;
+  z-index:1;
+  max-width:900px;
+  text-align:center;
+}
+.plans-title{
+  font-family:'Poppins', sans-serif;
+  font-size:22px;
+  font-weight:700;
+  color:#fff;
+  margin:0 0 6px;
+}
+.plans-subtitle{
+  color:rgba(255,255,255,0.65);
+  font-size:14px;
+  margin:0 0 24px;
+}
+.plans-grid{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 240px));
+  gap:16px;
+  justify-content:center;
+}
+.plan-card{
+  background:var(--card);
+  border-radius:16px;
+  padding:24px 20px;
+  box-shadow:var(--shadow-lg);
+  display:flex;
+  flex-direction:column;
+  text-align:left;
+  position:relative;
+}
+.plan-card-highlight{
+  border:2px solid var(--green-light);
+}
+.plan-badge{
+  position:absolute;
+  top:-12px;
+  right:16px;
+  background:var(--green-light);
+  color:#fff;
+  font-size:11px;
+  font-weight:700;
+  padding:4px 10px;
+  border-radius:999px;
+  font-family:'Poppins', sans-serif;
+}
+.plan-name{
+  font-family:'Poppins', sans-serif;
+  font-size:17px;
+  font-weight:700;
+  line-height:1.3;
+  color:var(--text-dark);
+  margin:0 0 4px;
+  /* Reserves 2 lines' worth of height so a longer title (e.g. "Equipos
+     ilimitados") doesn't push that card's price/features/button lower than
+     the other cards in the row. */
+  min-height:calc(1.3em * 2);
+  display:flex;
+  align-items:center;
+}
+.plan-price{
+  margin:0 0 16px;
+  color:var(--text-light);
+  font-size:13px;
+}
+.plan-price span{
+  font-family:'Poppins', sans-serif;
+  font-size:28px;
+  font-weight:700;
+  color:var(--green-dark);
+}
+.plan-features{
+  list-style:none;
+  padding:0;
+  margin:0 0 20px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  flex:1;
+}
+.plan-features li{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:13px;
+  color:var(--text-dark);
+}
+@media (max-width:700px){
+  .plans-grid{ grid-template-columns:minmax(0, 260px); }
+}
+
 .login-shell{
   position:relative;
   height:100vh;

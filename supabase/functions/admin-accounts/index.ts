@@ -45,11 +45,13 @@ Deno.serve(async (req) => {
       const { data: usersData, error: listErr } = await admin.auth.admin.listUsers({ perPage: 1000 })
       if (listErr) return json({ error: listErr.message }, 500)
 
-      const [{ data: teamLinks }, { data: adminRows }] = await Promise.all([
+      const [{ data: teamLinks }, { data: adminRows }, { data: subRows }] = await Promise.all([
         admin.from('team_users').select('user_id, team_id, teams(id, name)'),
         admin.from('admin_users').select('user_id'),
+        admin.from('subscriptions').select('user_id, plan, max_teams, status, access_until'),
       ])
       const adminIds = new Set((adminRows || []).map(r => r.user_id))
+      const subsByUser = new Map((subRows || []).map(s => [s.user_id, s]))
 
       const accounts = usersData.users
         .map(u => ({
@@ -60,10 +62,34 @@ Deno.serve(async (req) => {
           teams: (teamLinks || [])
             .filter(l => l.user_id === u.id && l.teams)
             .map(l => ({ id: l.teams.id, name: l.teams.name })),
+          subscription: subsByUser.get(u.id) || { status: 'inactive', plan: null, max_teams: null, access_until: null },
         }))
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
 
       return json({ accounts })
+    }
+
+    // Admin override — grants/revokes free access or manually sets a plan,
+    // independent of whatever Stripe says (e.g. the club's own team, or a
+    // special arrangement). Never touches Stripe.
+    if (action === 'set_plan') {
+      const { user_id, status, plan, max_teams } = body
+      if (!user_id || !status) return json({ error: 'Falta user_id o status' }, 400)
+      if (!['inactive', 'active', 'expired', 'free_override'].includes(status)) {
+        return json({ error: 'Status inválido' }, 400)
+      }
+      const { error: upsertErr } = await admin.from('subscriptions').upsert({
+        user_id,
+        status,
+        plan: plan || null,
+        max_teams: max_teams === undefined ? null : max_teams,
+        // A manual override isn't seasonal — it doesn't expire on its own,
+        // only if/when the admin changes it again.
+        access_until: null,
+        updated_at: new Date().toISOString(),
+      })
+      if (upsertErr) return json({ error: upsertErr.message }, 500)
+      return json({ ok: true })
     }
 
     if (action === 'delete') {

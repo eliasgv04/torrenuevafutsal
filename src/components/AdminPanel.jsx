@@ -2,10 +2,14 @@ import React, {useState, useEffect, useCallback} from 'react'
 import { api } from '../lib/api'
 import ApproveRequestModal from './ApproveRequestModal'
 import ResetPasswordModal from './ResetPasswordModal'
+import PlanOverrideModal from './PlanOverrideModal'
 import ConfirmModal from './ConfirmModal'
 import { TrashIcon, XIcon } from './Icons'
+import { planLabel } from '../lib/plans'
 
 const STATUS_LABEL = { approved: 'Aprobada', rejected: 'Rechazada' }
+const PLAN_STATUS_LABEL = { inactive: 'Sin acceso', active: 'Activo', expired: 'Caducado', free_override: 'Gratis' }
+const PLAN_STATUS_COLOR = { inactive: '#999', active: '#16a34a', expired: '#dc2626', free_override: '#2563EB' }
 
 export default function AdminPanel(){
   const [teams,setTeams] = useState([])
@@ -16,6 +20,7 @@ export default function AdminPanel(){
   const [rejecting,setRejecting] = useState(null)
   const [deletingAccount,setDeletingAccount] = useState(null)
   const [resettingAccount,setResettingAccount] = useState(null)
+  const [managingPlanFor,setManagingPlanFor] = useState(null)
   const [successMsg,setSuccessMsg] = useState('')
   const [emailWarning,setEmailWarning] = useState(false)
 
@@ -64,6 +69,12 @@ export default function AdminPanel(){
   async function handleDeleteAccount(){
     await api.deleteAccount(deletingAccount.id)
     setDeletingAccount(null)
+    load()
+  }
+
+  async function handleSavePlan(payload){
+    await api.setAccountPlan({ user_id: managingPlanFor.id, ...payload })
+    setManagingPlanFor(null)
     load()
   }
 
@@ -155,6 +166,7 @@ export default function AdminPanel(){
                 onRemoveTeam={(teamId)=>handleRemoveTeam(acc.id, teamId)}
                 onDelete={()=>setDeletingAccount(acc)}
                 onResetPassword={()=>setResettingAccount(acc)}
+                onManagePlan={()=>setManagingPlanFor(acc)}
               />
             ))}
           </div>
@@ -211,14 +223,23 @@ export default function AdminPanel(){
           onCancel={()=>setResettingAccount(null)}
         />
       )}
+
+      {managingPlanFor && (
+        <PlanOverrideModal
+          account={managingPlanFor}
+          onSubmit={handleSavePlan}
+          onCancel={()=>setManagingPlanFor(null)}
+        />
+      )}
     </div>
   )
 }
 
-function AccountCard({account, allTeams, onAddTeam, onRemoveTeam, onDelete, onResetPassword}){
+function AccountCard({account, allTeams, onAddTeam, onRemoveTeam, onDelete, onResetPassword, onManagePlan}){
   const linkedIds = new Set(account.teams.map(t => t.id))
   const availableTeams = allTeams.filter(t => !linkedIds.has(t.id))
   const [selectedTeam, setSelectedTeam] = useState('')
+  const sub = account.subscription || { status: 'inactive', plan: null, max_teams: null }
 
   function addSelected(){
     if(!selectedTeam) return
@@ -234,9 +255,15 @@ function AccountCard({account, allTeams, onAddTeam, onRemoveTeam, onDelete, onRe
           {account.is_admin && (
             <span style={{marginLeft:8, fontSize:11, fontWeight:700, color:'#2563EB', background:'rgba(37,99,235,0.12)', padding:'2px 8px', borderRadius:999}}>ADMIN</span>
           )}
+          <span style={{marginLeft:8, fontSize:11, fontWeight:700, color:PLAN_STATUS_COLOR[sub.status] || '#999', background:'rgba(0,0,0,0.06)', padding:'2px 8px', borderRadius:999}}>
+            {PLAN_STATUS_LABEL[sub.status] || sub.status}{sub.plan ? ` · ${planLabel(sub.plan)}` : ''}
+          </span>
           <p className="small" style={{margin:'4px 0', color:'#999'}}>Creada el {new Date(account.created_at).toLocaleDateString('es-ES')}</p>
         </div>
-        <div style={{display:'flex', gap:8, flexShrink:0}}>
+        <div style={{display:'flex', gap:8, flexShrink:0, flexWrap:'wrap'}}>
+          <button className="btn btn-secondary btn-secondary-small" style={{marginTop:0}} onClick={onManagePlan}>
+            Gestionar plan
+          </button>
           <button className="btn btn-secondary btn-secondary-small" style={{marginTop:0}} onClick={onResetPassword}>
             Restablecer contraseña
           </button>
