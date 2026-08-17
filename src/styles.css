@@ -290,6 +290,21 @@ main{padding:32px 24px;flex:1}
   color:rgba(255,255,255,0.4);
 }
 
+.landing-footer-link{
+  background:none;
+  border:none;
+  padding:0;
+  margin:0;
+  font-size:12px;
+  font-weight:600;
+  color:rgba(255,255,255,0.85);
+  text-decoration:underline;
+  cursor:pointer;
+}
+.landing-footer-link:hover{
+  color:#fff;
+}
+
 .login-back{
   display:inline-flex;
   align-items:center;

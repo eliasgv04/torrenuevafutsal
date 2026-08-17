@@ -1,6 +1,7 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { BoardIcon, DumbbellIcon, TrophyIcon, BarChartIcon } from './Icons'
 import PitchLines from './PitchLines'
+import LegalModal from './LegalModal'
 
 const FEATURES = [
   { Icon: BoardIcon, label: 'Pizarra táctica' },
@@ -10,6 +11,8 @@ const FEATURES = [
 ]
 
 export default function LandingPage({ onLogin, onRequestAccess }) {
+  const [legalDoc, setLegalDoc] = useState(null)
+
   return (
     <div className="landing-page">
       <PitchLines />
@@ -42,7 +45,19 @@ export default function LandingPage({ onLogin, onRequestAccess }) {
         </div>
       </div>
 
-      <p className="landing-footer">FutsalKit — hecho para entrenadores de fútbol sala.</p>
+      <p className="landing-footer">
+        FutsalKit — hecho para entrenadores de fútbol sala.
+        {' · '}
+        <button type="button" className="landing-footer-link" onClick={() => setLegalDoc('privacy')}>
+          Política de privacidad
+        </button>
+        {' · '}
+        <button type="button" className="landing-footer-link" onClick={() => setLegalDoc('legal')}>
+          Aviso legal
+        </button>
+      </p>
+
+      {legalDoc && <LegalModal initialDoc={legalDoc} onClose={() => setLegalDoc(null)} />}
     </div>
   )
 }

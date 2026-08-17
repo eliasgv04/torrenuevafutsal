@@ -1,16 +1,34 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { Fragment, useState, useRef, useEffect, useCallback } from 'react'
 import { api } from '../lib/api'
-import { ArrowLeftIcon, XIcon, CopyIcon, CheckIcon } from './Icons'
+import { ArrowLeftIcon, XIcon, CopyIcon, CheckIcon, PlayIcon, PauseIcon, PlusIcon, DownloadIcon } from './Icons'
 
 const PIZARRA_URL = import.meta.env.BASE_URL + 'futsalkit-pizarra.jpg'
 
-const RIVAL_PRESETS = [
-  { id: 'rv-1', name: 'Portero',     position: 'Portero',     dorsal: null, short: 'Por',   initX: 93, initY: 50 },
-  { id: 'rv-2', name: 'Ala Zurdo',   position: 'Ala Zurdo',   dorsal: null, short: 'Ala Z', initX: 62, initY: 20 },
-  { id: 'rv-3', name: 'Ala Diestro', position: 'Ala Diestro', dorsal: null, short: 'Ala D', initX: 62, initY: 80 },
-  { id: 'rv-4', name: 'Pivot',       position: 'Pivot',       dorsal: null, short: 'Pivot', initX: 52, initY: 50 },
-  { id: 'rv-5', name: 'Cierre',      position: 'Cierre',      dorsal: null, short: 'Cierre',initX: 74, initY: 50 },
+// Three rival squads (red / blue / purple) so an exercise involving more
+// than one opposing team — e.g. a rondo or a multi-team drill — can place
+// extra full formations without reusing the same tokens. Each keeps its own
+// color throughout (including the keeper) so the squads are easy to tell
+// apart on the court.
+const RIVAL_RED    = '#dc2626'
+const RIVAL_BLUE   = '#3b82f6'
+const RIVAL_PURPLE = '#a855f7'
+
+function buildRivalGroup(prefix, color, initXOffset) {
+  return [
+    { id: `${prefix}-1`, name: 'Portero',     position: 'Portero',     dorsal: null, short: 'Por',    color, initX: 93 - initXOffset, initY: 50 },
+    { id: `${prefix}-2`, name: 'Ala Zurdo',   position: 'Ala Zurdo',   dorsal: null, short: 'Ala Z',  color, initX: 62 - initXOffset, initY: 20 },
+    { id: `${prefix}-3`, name: 'Ala Diestro', position: 'Ala Diestro', dorsal: null, short: 'Ala D',  color, initX: 62 - initXOffset, initY: 80 },
+    { id: `${prefix}-4`, name: 'Pivot',       position: 'Pivot',       dorsal: null, short: 'Pivot',  color, initX: 52 - initXOffset, initY: 50 },
+    { id: `${prefix}-5`, name: 'Cierre',      position: 'Cierre',      dorsal: null, short: 'Cierre', color, initX: 74 - initXOffset, initY: 50 },
+  ]
+}
+
+const RIVAL_GROUPS = [
+  { label: 'Rival rojo',   color: RIVAL_RED,    presets: buildRivalGroup('rv-r', RIVAL_RED,    0)  },
+  { label: 'Rival azul',   color: RIVAL_BLUE,   presets: buildRivalGroup('rv-a', RIVAL_BLUE,   6)  },
+  { label: 'Rival morado', color: RIVAL_PURPLE, presets: buildRivalGroup('rv-b', RIVAL_PURPLE, 12) },
 ]
+const RIVAL_PRESETS = RIVAL_GROUPS.flatMap(g => g.presets)
 
 // Formation slots for team players (left half), assigned sequentially
 const TEAM_SLOTS = [
@@ -40,11 +58,10 @@ const TEAM_POS_MAP = {
 const PALETTE   = ['#ffffff', '#ffd400', '#ef4444', '#f97316', '#22c55e', '#3b82f6', '#a855f7', '#1a1a1a']
 const PEN_SIZES = [2, 4, 8, 14]
 
-// Here we only care about telling the two teams (and our own keeper) apart
-// at a glance — not position, unlike Plantilla.
+// Here we only care about telling the teams (and our own keeper) apart at a
+// glance — not position, unlike Plantilla.
 const TEAM_COLOR   = '#ca8a04'
 const KEEPER_COLOR = '#15803d'
-const RIVAL_COLOR  = '#dc2626'
 const TOKEN_R   = 22
 
 // Custom eraser-shaped cursor for the "Borrar" tool (replaces the default cross/cell cursor)
@@ -92,16 +109,72 @@ const PolygonIcon = ({ size = 14, color = 'currentColor' }) => (
 // which repurpose the color swatches/pen sizes for other things or ignore them).
 const DRAW_TOOLS = ['draw', 'rect', 'polygon']
 
+// ── Frame animation ──────────────────────────────────────────────────────
+const SPEED_PRESETS = [
+  { label: 'Lento',  ms: 2500 },
+  { label: 'Normal', ms: 1500 },
+  { label: 'Rápido', ms: 800  },
+]
+
+// Recording an animated canvas needs both APIs; Safari support is patchy, so
+// this gates whether "Exportar vídeo" is even offered.
+const VIDEO_EXPORT_SUPPORTED =
+  typeof window !== 'undefined' &&
+  typeof MediaRecorder !== 'undefined' &&
+  !!window.HTMLCanvasElement?.prototype?.captureStream
+
+function easeInOutQuad(t) {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
+}
+
+// Blends two frames' tokens/text at progress t (0-1), matched by id. Items
+// present in both frames tween between their positions; an item only in the
+// starting frame holds its place until the very end of the transition, then
+// disappears (it "leaves"); an item only in the ending frame is shown at its
+// resting position for the whole transition (it "enters").
+function interpolateFrames(a, b, t) {
+  function blend(listA, listB) {
+    const mapA = new Map(listA.map(item => [item.id, item]))
+    const mapB = new Map(listB.map(item => [item.id, item]))
+    const ids = new Set([...mapA.keys(), ...mapB.keys()])
+    return [...ids].map(id => {
+      const from = mapA.get(id), to = mapB.get(id)
+      if (from && to) return { ...to, x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t }
+      if (from && !to) return t < 1 ? from : null
+      return to
+    }).filter(Boolean)
+  }
+  return { tokens: blend(a.tokens, b.tokens), textBoxes: blend(a.textBoxes, b.textBoxes) }
+}
+
 export default function TacticalBoard({ teamId, onClose }) {
   const [players,   setPlayers]   = useState([])
-  const [tokens,    setTokens]    = useState([])
-  const [textBoxes, setTextBoxes] = useState([])
+  // Each frame is a snapshot of token/text positions — the building block
+  // for the movement animation. Freehand drawings (pencil/rect/polygon)
+  // stay global across all frames, unlike tokens/text.
+  const [frames, setFrames] = useState([{ id: 'frame-1', tokens: [], textBoxes: [] }])
+  const [activeFrameIndex, setActiveFrameIndex] = useState(0)
+  const [previewFrame, setPreviewFrame] = useState(null) // interpolated snapshot shown while playing/exporting
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isExportingVideo, setIsExportingVideo] = useState(false)
+  const [speedMs, setSpeedMs] = useState(1500) // ms per frame-to-frame transition
   const [editingTextId, setEditingTextId] = useState(null)
   const [tool,      setTool]      = useState('draw')
   const [color,     setColor]     = useState('#ffffff')
   const [penSize,   setPenSize]   = useState(4)
   const [polyPointCount, setPolyPointCount] = useState(0)
   const [copyStatus, setCopyStatus] = useState(null) // null | 'done' | 'error'
+
+  const activeFrame = frames[activeFrameIndex] || frames[0]
+  const tokens    = previewFrame ? previewFrame.tokens    : activeFrame.tokens
+  const textBoxes = previewFrame ? previewFrame.textBoxes : activeFrame.textBoxes
+
+  function setActiveTokens(updater) {
+    setFrames(prev => prev.map((f, i) => i !== activeFrameIndex ? f : { ...f, tokens: typeof updater === 'function' ? updater(f.tokens) : updater }))
+  }
+  function setActiveTextBoxes(updater) {
+    setFrames(prev => prev.map((f, i) => i !== activeFrameIndex ? f : { ...f, textBoxes: typeof updater === 'function' ? updater(f.textBoxes) : updater }))
+  }
 
   const courtRef    = useRef(null)
   const canvasRef   = useRef(null)
@@ -113,10 +186,15 @@ export default function TacticalBoard({ teamId, onClose }) {
   const drag        = useRef(null)
   const dragText    = useRef(null)
   const textIdRef   = useRef(0)
+  const frameIdRef  = useRef(1)
+  const playbackCancelRef = useRef(false)
   const rectStart   = useRef(null)
   const rectEnd     = useRef(null)
   const polyPoints  = useRef([])
   const hatchCache  = useRef({})
+
+  // Stop any in-flight animation loop if the board unmounts mid-playback.
+  useEffect(() => () => { playbackCancelRef.current = true }, [])
 
   // Compute the rendered bounds of the image within courtRef (for objectFit:contain)
   function computeImgBounds() {
@@ -337,7 +415,7 @@ export default function TacticalBoard({ teamId, onClose }) {
   }
 
   function onCanvasDown(e) {
-    if (tool === 'move') return
+    if (isPlaying || tool === 'move') return
     if (tool === 'text') {
       e.preventDefault()
       const pt = canvasPct(e)
@@ -474,12 +552,13 @@ export default function TacticalBoard({ teamId, onClose }) {
   }
 
   function clearCanvas() {
+    if (isPlaying) return
     historyRef.current = []
     polyPoints.current = []
     setPolyPointCount(0)
     const c = canvasRef.current
     if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height)
-    setTextBoxes([])
+    setActiveTextBoxes([])
     setEditingTextId(null)
   }
 
@@ -487,8 +566,8 @@ export default function TacticalBoard({ teamId, onClose }) {
   const placedIds = new Set(tokens.map(t => t.sourceId))
 
   function addToken(source, isRival) {
-    if (placedIds.has(source.id)) return
-    const isPortero = source.position === 'Portero' || source.id === 'rv-1'
+    if (isPlaying || placedIds.has(source.id)) return
+    const isPortero = source.position === 'Portero'
 
     let x, y
     if (isRival) {
@@ -508,7 +587,7 @@ export default function TacticalBoard({ teamId, onClose }) {
       }
     }
 
-    setTokens(prev => [...prev, {
+    setActiveTokens(prev => [...prev, {
       id:       `placed-${source.id}`,
       sourceId: source.id,
       dorsal:   source.dorsal ?? null,
@@ -516,6 +595,7 @@ export default function TacticalBoard({ teamId, onClose }) {
       surname:  source.surname || '',
       position: source.position || '',
       short:    source.short   || null,
+      color:    source.color   || null,
       isPortero,
       isRival,
       x, y,
@@ -523,12 +603,16 @@ export default function TacticalBoard({ teamId, onClose }) {
   }
 
   function removeToken(tokenId) {
-    setTokens(prev => prev.filter(t => t.id !== tokenId))
+    if (isPlaying) return
+    setActiveTokens(prev => prev.filter(t => t.id !== tokenId))
   }
 
   function tokenColor(tok) {
+    // Rival tokens keep their squad's own color throughout (including the
+    // keeper) so two rival groups placed at once stay visually distinct.
+    if (tok.isRival) return tok.color || RIVAL_RED
     if (tok.isPortero) return KEEPER_COLOR
-    return tok.isRival ? RIVAL_COLOR : TEAM_COLOR
+    return TEAM_COLOR
   }
 
   function shortLabel(tok) {
@@ -540,22 +624,22 @@ export default function TacticalBoard({ teamId, onClose }) {
   // ── Text box helpers ────────────────────────────────────────────────
   function addTextBox(x, y) {
     const id = `text-${textIdRef.current++}`
-    setTextBoxes(prev => [...prev, { id, x, y, text: '', color, fontSize: 12 + penSize * 2 }])
+    setActiveTextBoxes(prev => [...prev, { id, x, y, text: '', color, fontSize: 12 + penSize * 2 }])
     setEditingTextId(id)
   }
 
   function updateTextBox(id, text) {
-    setTextBoxes(prev => prev.map(t => t.id === id ? { ...t, text } : t))
+    setActiveTextBoxes(prev => prev.map(t => t.id === id ? { ...t, text } : t))
   }
 
   function removeTextBox(id) {
-    setTextBoxes(prev => prev.filter(t => t.id !== id))
+    setActiveTextBoxes(prev => prev.filter(t => t.id !== id))
     setEditingTextId(cur => cur === id ? null : cur)
   }
 
   function commitTextEdit(id) {
     setEditingTextId(null)
-    setTextBoxes(prev => {
+    setActiveTextBoxes(prev => {
       const box = prev.find(t => t.id === id)
       if (box && !box.text.trim()) return prev.filter(t => t.id !== id)
       return prev
@@ -563,6 +647,7 @@ export default function TacticalBoard({ teamId, onClose }) {
   }
 
   function onTextDown(e, id) {
+    if (isPlaying) return
     if (tool === 'erase') {
       e.preventDefault()
       e.stopPropagation()
@@ -587,14 +672,14 @@ export default function TacticalBoard({ teamId, onClose }) {
     const rect = courtRef.current.getBoundingClientRect()
     const x = Math.max(1, Math.min(99, ((e.clientX - rect.left - dragText.current.offX) / rect.width)  * 100))
     const y = Math.max(1, Math.min(99, ((e.clientY - rect.top  - dragText.current.offY) / rect.height) * 100))
-    setTextBoxes(prev => prev.map(t => t.id === id ? { ...t, x, y } : t))
+    setActiveTextBoxes(prev => prev.map(t => t.id === id ? { ...t, x, y } : t))
   }
 
   function onTextUp() { dragText.current = null }
 
   // ── Token drag (pointer capture on token itself) ───────────────────
   function onTokenDown(e, tokenId) {
-    if (tool !== 'move') return
+    if (isPlaying || tool !== 'move') return
     e.preventDefault()
     e.stopPropagation()
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -612,35 +697,104 @@ export default function TacticalBoard({ teamId, onClose }) {
     const rect = courtRef.current.getBoundingClientRect()
     const x = Math.max(1, Math.min(99, ((e.clientX - rect.left - drag.current.offX) / rect.width)  * 100))
     const y = Math.max(1, Math.min(99, ((e.clientY - rect.top  - drag.current.offY) / rect.height) * 100))
-    setTokens(prev => prev.map(t => t.id === tokenId ? { ...t, x, y } : t))
+    setActiveTokens(prev => prev.map(t => t.id === tokenId ? { ...t, x, y } : t))
   }
 
   function onTokenUp() { drag.current = null }
 
+  // ── Frames ─────────────────────────────────────────────────────────
+  function cloneFrame(frame) {
+    return {
+      id: `frame-${++frameIdRef.current}`,
+      tokens:    frame.tokens.map(t => ({ ...t })),
+      textBoxes: frame.textBoxes.map(t => ({ ...t })),
+    }
+  }
+
+  // New frame starts as a copy of the last one in the sequence, so the coach
+  // only has to drag pieces to their next positions instead of rebuilding
+  // the whole formation from scratch.
+  function addFrame() {
+    if (isPlaying) return
+    setFrames(prev => [...prev, cloneFrame(prev[prev.length - 1])])
+    setActiveFrameIndex(frames.length)
+  }
+
+  function selectFrame(index) {
+    if (isPlaying) return
+    setActiveFrameIndex(index)
+  }
+
+  function deleteFrame(index) {
+    if (isPlaying || frames.length <= 1) return
+    const next = frames.filter((_, i) => i !== index)
+    setFrames(next)
+    if (index < activeFrameIndex) setActiveFrameIndex(activeFrameIndex - 1)
+    else if (index === activeFrameIndex) setActiveFrameIndex(Math.min(activeFrameIndex, next.length - 1))
+  }
+
+  function deleteAllFrames() {
+    if (isPlaying) return
+    if (!window.confirm('¿Borrar todos los frames y empezar de nuevo? Los dibujos a lápiz no se verán afectados.')) return
+    setFrames([{ id: `frame-${++frameIdRef.current}`, tokens: [], textBoxes: [] }])
+    setActiveFrameIndex(0)
+  }
+
+  // Drives both the on-screen preview and the video recording from the same
+  // frame-to-frame tween loop — onTick just receives each interpolated
+  // snapshot and decides what to do with it (render it, draw it, or both).
+  function runSequence(onTick) {
+    return new Promise(resolve => {
+      playbackCancelRef.current = false
+      if (frames.length < 2) { onTick({ tokens: frames[0].tokens, textBoxes: frames[0].textBoxes }); resolve(); return }
+
+      let i = 0
+      onTick({ tokens: frames[0].tokens, textBoxes: frames[0].textBoxes })
+
+      function nextSegment() {
+        if (playbackCancelRef.current || i >= frames.length - 1) { resolve(); return }
+        const from = frames[i], to = frames[i + 1]
+        const segStart = performance.now()
+        function step(now) {
+          if (playbackCancelRef.current) { resolve(); return }
+          const t = Math.min(1, (now - segStart) / speedMs)
+          onTick(interpolateFrames(from, to, easeInOutQuad(t)))
+          if (t < 1) requestAnimationFrame(step)
+          else { i++; nextSegment() }
+        }
+        requestAnimationFrame(step)
+      }
+      nextSegment()
+    })
+  }
+
+  async function playPreview() {
+    if (isPlaying || frames.length < 2) return
+    setIsPlaying(true)
+    await runSequence(snapshot => setPreviewFrame(snapshot))
+    setPreviewFrame(null)
+    setIsPlaying(false)
+  }
+
+  function stopPlayback() {
+    playbackCancelRef.current = true
+  }
+
   // ── Export ─────────────────────────────────────────────────────────
-  async function buildBoardCanvas() {
-    const court = courtRef.current
-    if (!court) return null
-    const rect = court.getBoundingClientRect()
+  // Shared by the static PNG export and the video recorder — draws one full
+  // frame (background + persistent pencil layer + given tokens/text) onto
+  // any canvas context. Reuses the already-loaded <img> element instead of
+  // fetching PIZARRA_URL again, since this runs on every animation tick
+  // during a recording (a fresh `new Image()` load per tick would be far
+  // too slow).
+  function drawBoardSnapshot(ctx, w, h, snapshotTokens, snapshotTextBoxes) {
+    ctx.clearRect(0, 0, w, h)
+    if (imgRef.current) ctx.drawImage(imgRef.current, 0, 0, w, h)
+    if (canvasRef.current) ctx.drawImage(canvasRef.current, 0, 0, w, h)
 
-    const off = document.createElement('canvas')
-    off.width  = rect.width
-    off.height = rect.height
-    const ctx  = off.getContext('2d')
-
-    // 1. Pizarra background
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    await new Promise(res => { img.onload = res; img.onerror = res; img.src = PIZARRA_URL })
-    ctx.drawImage(img, 0, 0, off.width, off.height)
-
-    // 2. Drawing strokes (canvas → offscreen)
-    ctx.drawImage(canvasRef.current, 0, 0, off.width, off.height)
-
-    // 3. Tokens
-    for (const tok of tokens) {
-      const tx = (tok.x / 100) * off.width
-      const ty = (tok.y / 100) * off.height
+    for (const tok of snapshotTokens) {
+      const tx = (tok.x / 100) * w
+      const ty = (tok.y / 100) * h
 
       ctx.beginPath()
       ctx.arc(tx, ty, TOKEN_R, 0, Math.PI * 2)
@@ -669,13 +823,12 @@ export default function TacticalBoard({ teamId, onClose }) {
       ctx.shadowBlur = 0
     }
 
-    // 4. Text boxes
     ctx.textAlign    = 'center'
     ctx.textBaseline = 'middle'
-    for (const box of textBoxes) {
+    for (const box of snapshotTextBoxes) {
       if (!box.text) continue
-      const tx = (box.x / 100) * off.width
-      const ty = (box.y / 100) * off.height
+      const tx = (box.x / 100) * w
+      const ty = (box.y / 100) * h
       ctx.font        = `bold ${box.fontSize}px Raleway, sans-serif`
       ctx.fillStyle   = box.color
       ctx.shadowColor = 'rgba(0,0,0,0.7)'
@@ -683,12 +836,21 @@ export default function TacticalBoard({ teamId, onClose }) {
       ctx.fillText(box.text, tx, ty)
       ctx.shadowBlur = 0
     }
+  }
 
+  function buildBoardCanvas() {
+    const court = courtRef.current
+    if (!court) return null
+    const rect = court.getBoundingClientRect()
+    const off = document.createElement('canvas')
+    off.width  = rect.width
+    off.height = rect.height
+    drawBoardSnapshot(off.getContext('2d'), off.width, off.height, tokens, textBoxes)
     return off
   }
 
   async function exportBoard() {
-    const off = await buildBoardCanvas()
+    const off = buildBoardCanvas()
     if (!off) return
     const url = off.toDataURL('image/png')
     const a   = document.createElement('a')
@@ -698,7 +860,7 @@ export default function TacticalBoard({ teamId, onClose }) {
   }
 
   async function copyBoardImage() {
-    const off = await buildBoardCanvas()
+    const off = buildBoardCanvas()
     if (!off) return
     try {
       const blob = await new Promise(res => off.toBlob(res, 'image/png'))
@@ -709,6 +871,61 @@ export default function TacticalBoard({ teamId, onClose }) {
       setCopyStatus('error')
     }
     setTimeout(() => setCopyStatus(null), 1800)
+  }
+
+  const VIDEO_MIME_CANDIDATES = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
+
+  async function exportVideo() {
+    if (isPlaying || frames.length < 2 || !VIDEO_EXPORT_SUPPORTED) return
+    const court = courtRef.current
+    if (!court) return
+    const mimeType = VIDEO_MIME_CANDIDATES.find(m => MediaRecorder.isTypeSupported(m))
+    if (!mimeType) {
+      alert('Tu navegador no permite grabar vídeo directamente. Prueba con Chrome, Edge o Firefox actualizados.')
+      return
+    }
+
+    const rect = court.getBoundingClientRect()
+    const rec  = document.createElement('canvas')
+    rec.width  = rect.width
+    rec.height = rect.height
+    const ctx  = rec.getContext('2d')
+    drawBoardSnapshot(ctx, rec.width, rec.height, frames[0].tokens, frames[0].textBoxes)
+
+    const stream   = rec.captureStream(30)
+    const chunks   = []
+    const recorder = new MediaRecorder(stream, { mimeType })
+    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
+
+    setIsPlaying(true)
+    setIsExportingVideo(true)
+    recorder.start()
+
+    await runSequence(snapshot => {
+      setPreviewFrame(snapshot)
+      drawBoardSnapshot(ctx, rec.width, rec.height, snapshot.tokens, snapshot.textBoxes)
+    })
+    const wasCancelled = playbackCancelRef.current
+    // Hold the last frame briefly so the recording doesn't cut off mid-beat.
+    if (!wasCancelled) await new Promise(res => setTimeout(res, 400))
+
+    recorder.stop()
+    await new Promise(res => { recorder.onstop = res })
+    stream.getTracks().forEach(t => t.stop())
+
+    if (!wasCancelled) {
+      const blob = new Blob(chunks, { type: mimeType })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = 'pizarra-animacion.webm'
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+
+    setPreviewFrame(null)
+    setIsExportingVideo(false)
+    setIsPlaying(false)
   }
 
   // ── Render ─────────────────────────────────────────────────────────
@@ -858,6 +1075,87 @@ export default function TacticalBoard({ teamId, onClose }) {
         }}>Exportar PNG</button>
       </div>
 
+      {/* ── Frames bar (animation) ── */}
+      <div style={{
+        background: 'rgba(0,0,0,0.4)', padding: '8px 16px',
+        display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+        borderBottom: '2px solid rgba(37,99,235,0.4)', flexShrink: 0,
+      }}>
+        <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 700, fontFamily: 'Poppins, sans-serif', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>
+          Frames
+        </span>
+
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          {frames.map((f, i) => (
+            <FrameChip
+              key={f.id}
+              index={i}
+              active={i === activeFrameIndex}
+              dimmed={isPlaying}
+              canDelete={frames.length > 1 && !isPlaying}
+              onSelect={() => selectFrame(i)}
+              onDelete={() => deleteFrame(i)}
+            />
+          ))}
+          <button onClick={addFrame} disabled={isPlaying} title="Añadir frame (parte de la posición del último)" style={{
+            width: 32, height: 32, borderRadius: 9, border: 'none', cursor: isPlaying ? 'not-allowed' : 'pointer',
+            background: 'rgba(37,99,235,0.3)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            opacity: isPlaying ? 0.5 : 1, flexShrink: 0,
+          }}><PlusIcon size={15}/></button>
+        </div>
+
+        <ToolDivider />
+
+        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', fontFamily: 'Poppins, sans-serif', flexShrink: 0 }}>Velocidad</span>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {SPEED_PRESETS.map(s => (
+            <button key={s.ms} onClick={() => setSpeedMs(s.ms)} disabled={isPlaying} style={{
+              padding: '5px 10px', borderRadius: 20, fontSize: 11, cursor: isPlaying ? 'not-allowed' : 'pointer',
+              border: 'none', background: speedMs === s.ms ? '#2563EB' : 'rgba(255,255,255,0.12)',
+              color: '#fff', fontFamily: 'Poppins, sans-serif', fontWeight: 700, opacity: isPlaying ? 0.5 : 1,
+            }}>{s.label}</button>
+          ))}
+        </div>
+
+        <ToolDivider />
+
+        {!isPlaying ? (
+          <button onClick={playPreview} disabled={frames.length < 2} title={frames.length < 2 ? 'Añade al menos 2 frames para reproducir' : 'Reproducir animación'} style={{
+            padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: frames.length < 2 ? 'not-allowed' : 'pointer',
+            border: 'none', background: frames.length < 2 ? 'rgba(255,255,255,0.1)' : '#16a34a', color: '#fff',
+            fontFamily: 'Poppins, sans-serif', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6,
+            opacity: frames.length < 2 ? 0.5 : 1,
+          }}><PlayIcon size={13}/> Reproducir</button>
+        ) : (
+          <button onClick={stopPlayback} style={{
+            padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+            border: 'none', background: '#dc2626', color: '#fff',
+            fontFamily: 'Poppins, sans-serif', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6,
+          }}><PauseIcon size={13}/> {isExportingVideo ? 'Cancelar grabación' : 'Detener'}</button>
+        )}
+
+        <button
+          onClick={exportVideo}
+          disabled={isPlaying || frames.length < 2 || !VIDEO_EXPORT_SUPPORTED}
+          title={!VIDEO_EXPORT_SUPPORTED ? 'Tu navegador no soporta grabar vídeo (prueba Chrome, Edge o Firefox)' : frames.length < 2 ? 'Añade al menos 2 frames' : 'Exportar la animación como vídeo'}
+          style={{
+            padding: '6px 14px', borderRadius: 20, fontSize: 12,
+            cursor: (isPlaying || frames.length < 2 || !VIDEO_EXPORT_SUPPORTED) ? 'not-allowed' : 'pointer',
+            border: 'none', background: '#2563EB', color: '#fff',
+            fontFamily: 'Poppins, sans-serif', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6,
+            opacity: (isPlaying || frames.length < 2 || !VIDEO_EXPORT_SUPPORTED) ? 0.5 : 1,
+          }}
+        ><DownloadIcon size={13}/> {isExportingVideo ? 'Grabando…' : 'Exportar vídeo'}</button>
+
+        <div style={{ marginLeft: 'auto' }}>
+          <button onClick={deleteAllFrames} disabled={isPlaying} title="Borrar todos los frames" style={{
+            padding: '6px 12px', borderRadius: 20, fontSize: 12, cursor: isPlaying ? 'not-allowed' : 'pointer',
+            border: '1px solid rgba(220,38,38,0.4)', background: 'rgba(220,38,38,0.12)', color: '#fca5a5',
+            fontFamily: 'Poppins, sans-serif', fontWeight: 600, opacity: isPlaying ? 0.5 : 1,
+          }}>Eliminar todos</button>
+        </div>
+      </div>
+
       {/* ── 3-column main area ── */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0, background: '#172554' }}>
 
@@ -925,9 +1223,9 @@ export default function TacticalBoard({ teamId, onClose }) {
                 border:       '2.5px solid rgba(0,0,0,0.35)',
                 boxShadow:    '0 3px 10px rgba(0,0,0,0.55)',
                 display:      'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                cursor:       tool === 'move' ? 'grab' : 'default',
+                cursor:       tool === 'move' && !isPlaying ? 'grab' : 'default',
                 touchAction:  'none', userSelect: 'none', zIndex: 20,
-                pointerEvents: tool === 'move' ? 'auto' : 'none',
+                pointerEvents: tool === 'move' && !isPlaying ? 'auto' : 'none',
                 transition:   'box-shadow 0.1s',
               }}
             >
@@ -939,7 +1237,7 @@ export default function TacticalBoard({ teamId, onClose }) {
               <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.92)', lineHeight: 1, marginTop: tok.dorsal != null ? 1 : 0, textAlign: 'center', padding: '0 2px', maxWidth: TOKEN_R * 2 - 4, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
                 {shortLabel(tok)}
               </span>
-              {tool === 'move' && (
+              {tool === 'move' && !isPlaying && (
                 <button onClick={e => { e.stopPropagation(); removeToken(tok.id) }} style={{
                   position: 'absolute', top: -8, right: -8,
                   width: 18, height: 18, borderRadius: '50%', border: '1.5px solid #bbb',
@@ -965,9 +1263,9 @@ export default function TacticalBoard({ teamId, onClose }) {
                   position: 'absolute',
                   left: `${box.x}%`, top: `${box.y}%`,
                   transform: 'translate(-50%, -50%)',
-                  cursor: tool === 'move' ? 'grab' : tool === 'erase' ? ERASER_CURSOR : 'default',
+                  cursor: isPlaying ? 'default' : tool === 'move' ? 'grab' : tool === 'erase' ? ERASER_CURSOR : 'default',
                   touchAction: 'none', userSelect: 'none', zIndex: 21,
-                  pointerEvents: (tool === 'move' || tool === 'erase' || editing) ? 'auto' : 'none',
+                  pointerEvents: !isPlaying && (tool === 'move' || tool === 'erase' || editing) ? 'auto' : 'none',
                 }}
               >
                 {editing ? (
@@ -993,10 +1291,10 @@ export default function TacticalBoard({ teamId, onClose }) {
                     font: `bold ${box.fontSize}px 'Raleway', sans-serif`, color: box.color,
                     textShadow: '0 1px 4px rgba(0,0,0,0.75), 0 0 2px rgba(0,0,0,0.9)',
                     whiteSpace: 'pre', padding: '2px 4px', borderRadius: 4,
-                    border: tool === 'move' ? '1.5px dashed rgba(255,255,255,0.4)' : 'none',
+                    border: tool === 'move' && !isPlaying ? '1.5px dashed rgba(255,255,255,0.4)' : 'none',
                   }}>
                     {box.text || ' '}
-                    {tool === 'move' && (
+                    {tool === 'move' && !isPlaying && (
                       <button onClick={e => { e.stopPropagation(); removeTextBox(box.id) }} style={{
                         width: 16, height: 16, borderRadius: '50%', border: '1.5px solid #bbb',
                         background: '#fff', color: '#333', fontSize: 9, fontWeight: 700,
@@ -1011,17 +1309,24 @@ export default function TacticalBoard({ teamId, onClose }) {
           })}
         </div>
 
-        {/* Right panel – rivals */}
+        {/* Right panel – rivals (two squads, so a 2-team drill can place both) */}
         <SidePanel title="Rivales">
-          {RIVAL_PRESETS.map(p => (
-            <TokenChip
-              key={p.id}
-              label={p.name}
-              sub={p.short}
-              color={RIVAL_COLOR}
-              placed={placedIds.has(p.id)}
-              onToggle={() => placedIds.has(p.id) ? removeToken(`placed-${p.id}`) : addToken(p, true)}
-            />
+          {RIVAL_GROUPS.map(group => (
+            <Fragment key={group.label}>
+              <span style={{ gridColumn: '1 / -1', fontSize: 9.5, fontWeight: 700, color: group.color, textAlign: 'center', letterSpacing: '0.4px', marginTop: 2 }}>
+                {group.label.toUpperCase()}
+              </span>
+              {group.presets.map(p => (
+                <TokenChip
+                  key={p.id}
+                  label={p.name}
+                  sub={p.short}
+                  color={p.color}
+                  placed={placedIds.has(p.id)}
+                  onToggle={() => placedIds.has(p.id) ? removeToken(`placed-${p.id}`) : addToken(p, true)}
+                />
+              ))}
+            </Fragment>
           ))}
         </SidePanel>
 
@@ -1084,5 +1389,42 @@ function TokenChip({ label, sub, color, placed, onToggle }) {
 
 function ToolDivider() {
   return <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.25)', flexShrink: 0 }}/>
+}
+
+function FrameChip({ index, active, dimmed, canDelete, onSelect, onDelete }) {
+  const [hover, setHover] = useState(false)
+  return (
+    <div
+      onClick={onSelect}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title={`Frame ${index + 1}`}
+      style={{
+        position: 'relative', width: 32, height: 32, borderRadius: 9,
+        cursor: dimmed ? 'default' : 'pointer', flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: active ? '#2563EB' : 'rgba(255,255,255,0.12)',
+        border: active ? '2px solid #93c5fd' : '1.5px solid rgba(255,255,255,0.2)',
+        color: '#fff', fontFamily: 'Poppins, sans-serif', fontWeight: 700, fontSize: 13,
+        boxShadow: active ? '0 2px 8px rgba(37,99,235,0.5)' : 'none',
+        opacity: dimmed && !active ? 0.5 : 1, transition: 'all 0.15s',
+      }}
+    >
+      {index + 1}
+      {canDelete && hover && (
+        <button
+          onClick={e => { e.stopPropagation(); onDelete() }}
+          title="Eliminar frame" aria-label="Eliminar frame"
+          style={{
+            position: 'absolute', top: -8, right: -8,
+            width: 18, height: 18, borderRadius: '50%', border: '1.5px solid #bbb',
+            background: '#fff', color: '#dc2626',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 0, cursor: 'pointer',
+          }}
+        ><XIcon size={10}/></button>
+      )}
+    </div>
+  )
 }
 

@@ -625,12 +625,13 @@ export const api = {
       .sort((a,b)=>a.dorsal - b.dorsal)
   },
 
-  async createPlayer({team_id, name, surname, dorsal, position}){
+  async createPlayer({team_id, name, surname, dorsal, position, birth_date, guardian_consent, guardian_consent_at}){
+    const extra = { birth_date: birth_date || null, guardian_consent: !!guardian_consent, guardian_consent_at: guardian_consent_at || null }
     try{
       if(HAS_SUPABASE){
         const { data, error } = await supabase
           .from('players')
-          .insert({team_id, name, surname, dorsal, position})
+          .insert({team_id, name, surname, dorsal, position, ...extra})
           .select()
           .single()
         if(error) throw error
@@ -640,7 +641,7 @@ export const api = {
       console.error('Supabase error, falling back to localStorage:', e)
     }
     const players = lsGet('tf_players')
-    const player = {id:uid(), team_id, name, surname, dorsal, position, created_at: new Date().toISOString()}
+    const player = {id:uid(), team_id, name, surname, dorsal, position, ...extra, created_at: new Date().toISOString()}
     players.push(player)
     lsSet('tf_players', players)
     return player
@@ -1032,10 +1033,11 @@ export const api = {
   // back — RLS only grants INSERT here, no SELECT, so requesting the row
   // back would fail. Admin accounts review/approve requests from AdminPanel
   // (see the admin.* helpers below); no other account can read this table.
-  async requestAccess({team_name, contact_name, contact_email, message}){
+  async requestAccess({team_name, contact_name, contact_email, message, privacy_accepted}){
     if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
+    if(!privacy_accepted) throw new Error('Debes aceptar la política de privacidad')
     const { error } = await supabase.from('access_requests').insert({
-      team_name, contact_name, contact_email, message: message || null
+      team_name, contact_name, contact_email, message: message || null, privacy_accepted: true
     })
     if(error) throw error
   },

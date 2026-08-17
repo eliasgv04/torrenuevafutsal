@@ -66,6 +66,12 @@ create table if not exists players (
   surname text not null,
   dorsal integer not null,
   position text not null check (position in ('Portero', 'Cierre', 'Ala Diestro', 'Ala Zurdo', 'Pivot')),
+  -- Optional: lets the app flag minors in the roster. guardian_consent is
+  -- the coach affirming (not the app verifying) that the legal guardian's
+  -- consent was obtained, per RGPD art. 8 — see supabase/add-gdpr-fields.sql.
+  birth_date date,
+  guardian_consent boolean not null default false,
+  guardian_consent_at timestamp with time zone,
   created_at timestamp with time zone default timezone('utc', now())
 );
 
@@ -286,6 +292,9 @@ create table if not exists access_requests (
   contact_name text not null,
   contact_email text not null,
   message text,
+  -- Recorded consent to the privacy policy, given at submission time (RGPD
+  -- art. 7.1 — the controller must be able to demonstrate consent).
+  privacy_accepted boolean not null default false,
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
   created_at timestamp with time zone default timezone('utc', now())
 );

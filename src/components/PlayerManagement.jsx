@@ -11,6 +11,14 @@ function fmtMins(secs){
 
 const EMPTY_TOTALS = { matches:0, goals:0, assists:0, shots_on_goal:0, shots_out:0, fouls:0, yellow_cards:0, red_cards:0, saves:0, minutes_played:0 }
 
+function isMinor(birthDate){
+  if(!birthDate) return false
+  const birth = new Date(birthDate)
+  if(Number.isNaN(birth.getTime())) return false
+  const eighteenthBirthday = new Date(birth.getFullYear() + 18, birth.getMonth(), birth.getDate())
+  return eighteenthBirthday > new Date()
+}
+
 function sumMatches(matches){
   return matches.reduce((acc, m) => ({
     matches: acc.matches + 1,
@@ -34,7 +42,8 @@ export default function PlayerManagement({ teamId, onClose, initialPlayerId }) {
   const [playerMatchesMap, setPlayerMatchesMap] = useState({})
   const [loadingMatches, setLoadingMatches] = useState(false)
   const [confirmDeleteFor, setConfirmDeleteFor] = useState(null)
-  const [formData, setFormData] = useState({ name: '', surname: '', dorsal: '', position: 'Portero' })
+  const [formData, setFormData] = useState({ name: '', surname: '', dorsal: '', position: 'Portero', birth_date: '', guardian_consent: false })
+  const [formError, setFormError] = useState('')
 
   useEffect(() => {
     loadPlayers()
@@ -46,19 +55,29 @@ export default function PlayerManagement({ teamId, onClose, initialPlayerId }) {
     setPlayers(data)
   }
 
+  const formIsMinor = isMinor(formData.birth_date)
+
   const handleAddPlayer = async (e) => {
     e.preventDefault()
+    setFormError('')
     if (!formData.name || !formData.surname || !formData.dorsal) return
+    if (formIsMinor && !formData.guardian_consent) {
+      setFormError('Este jugador es menor de edad: confirma que dispones del consentimiento de su tutor/a legal antes de guardarlo.')
+      return
+    }
 
     await api.createPlayer({
       team_id: teamId,
       name: formData.name,
       surname: formData.surname,
       dorsal: parseInt(formData.dorsal),
-      position: formData.position
+      position: formData.position,
+      birth_date: formData.birth_date || null,
+      guardian_consent: formIsMinor ? formData.guardian_consent : false,
+      guardian_consent_at: formIsMinor && formData.guardian_consent ? new Date().toISOString() : null
     })
 
-    setFormData({ name: '', surname: '', dorsal: '', position: 'Portero' })
+    setFormData({ name: '', surname: '', dorsal: '', position: 'Portero', birth_date: '', guardian_consent: false })
     setShowForm(false)
     loadPlayers()
   }
@@ -169,6 +188,31 @@ export default function PlayerManagement({ teamId, onClose, initialPlayerId }) {
               </option>
             ))}
           </select>
+          <label style={{display:'block', fontSize:13, fontWeight:600, margin:'8px 0 4px'}} htmlFor="player-birth-date">
+            Fecha de nacimiento (opcional)
+          </label>
+          <input
+            id="player-birth-date"
+            type="date"
+            value={formData.birth_date}
+            onChange={(e) => setFormData({ ...formData, birth_date: e.target.value, guardian_consent: false })}
+            max={new Date().toISOString().slice(0, 10)}
+          />
+          {formIsMinor && (
+            <label className="exercise-public-toggle" htmlFor="player-guardian-consent" style={{margin:'8px 0'}}>
+              <input
+                id="player-guardian-consent"
+                type="checkbox"
+                checked={formData.guardian_consent}
+                onChange={(e) => setFormData({ ...formData, guardian_consent: e.target.checked })}
+              />
+              <span style={{fontWeight:600}}>
+                Es menor de edad
+                <small>Confirmo que dispongo del consentimiento de su padre/madre/tutor/a legal para tratar sus datos, conforme al art. 8 del RGPD.</small>
+              </span>
+            </label>
+          )}
+          {formError && <p className="login-error">{formError}</p>}
           <button type="submit" className="btn btn-primary" style={{marginTop:0}}>Guardar</button>
           <button type="button" className="btn btn-cancel" style={{marginTop:0}} onClick={() => setShowForm(false)}>Cancelar</button>
         </form>
@@ -192,7 +236,7 @@ export default function PlayerManagement({ teamId, onClose, initialPlayerId }) {
                 <span className="player-square-dorsal">{player.dorsal}</span>
               </div>
               <div className="player-square-info">
-                <div className="player-square-name">{player.name} {player.surname}</div>
+                <div className="player-square-name">{player.name} {player.surname}{isMinor(player.birth_date) ? ' · Menor' : ''}</div>
                 <div className="player-square-position">{player.position}</div>
               </div>
             </button>
@@ -212,6 +256,11 @@ export default function PlayerManagement({ teamId, onClose, initialPlayerId }) {
                 <span className="player-square-position-badge" style={{ background:positionColors[detailPlayer.position] }}>
                   {detailPlayer.position}
                 </span>
+                {isMinor(detailPlayer.birth_date) && (
+                  <p className="player-stats-note" style={{marginTop:6}}>
+                    Menor de edad · consentimiento del tutor/a legal {detailPlayer.guardian_consent ? 'confirmado' : 'NO confirmado'}
+                  </p>
+                )}
               </div>
             </div>
 

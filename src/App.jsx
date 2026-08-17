@@ -7,6 +7,7 @@ import LandingPage from './components/LandingPage'
 import PitchLines from './components/PitchLines'
 import AdminPanel from './components/AdminPanel'
 import ProfileMenu from './components/ProfileMenu'
+import LegalModal from './components/LegalModal'
 import { ArrowLeftIcon } from './components/Icons'
 
 function AuthBrand() {
@@ -28,7 +29,7 @@ const LEGACY_USERS = {
   'admin': 'admin@torrenuevafutsal.local',
 }
 
-const EMPTY_REQUEST = { team_name: '', contact_name: '', contact_email: '', message: '' }
+const EMPTY_REQUEST = { team_name: '', contact_name: '', contact_email: '', message: '', privacy_accepted: false }
 
 export default function App() {
   const [session, setSession] = useState(undefined)
@@ -44,6 +45,7 @@ export default function App() {
   const [requestForm, setRequestForm] = useState(EMPTY_REQUEST)
   const [requestError, setRequestError] = useState('')
   const [requestLoading, setRequestLoading] = useState(false)
+  const [legalDoc, setLegalDoc] = useState(null)
 
   useEffect(() => {
     if (!supabase) {
@@ -184,6 +186,21 @@ export default function App() {
                 onChange={(e) => setRequestForm({ ...requestForm, message: e.target.value })}
                 placeholder="Cuéntanos algo más si quieres..."
               />
+              <label className="exercise-public-toggle" htmlFor="req-privacy" style={{ marginTop: 12 }}>
+                <input
+                  id="req-privacy"
+                  type="checkbox"
+                  checked={requestForm.privacy_accepted}
+                  onChange={(e) => setRequestForm({ ...requestForm, privacy_accepted: e.target.checked })}
+                  required
+                />
+                <span style={{ fontWeight: 400, fontSize: 13 }}>
+                  He leído y acepto la{' '}
+                  <button type="button" className="login-link" style={{ fontSize: 13 }} onClick={() => setLegalDoc('privacy')}>
+                    política de privacidad
+                  </button>
+                </span>
+              </label>
               {requestError && <p className="login-error">{requestError}</p>}
               <button type="submit" className="btn btn-primary login-btn" disabled={requestLoading}>
                 {requestLoading ? 'Enviando...' : 'Enviar solicitud'}
@@ -195,6 +212,7 @@ export default function App() {
               </button>
             </p>
           </div>
+          {legalDoc && <LegalModal initialDoc={legalDoc} onClose={() => setLegalDoc(null)} />}
         </div>
       )
     }
