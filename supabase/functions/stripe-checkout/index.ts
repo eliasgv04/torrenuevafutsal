@@ -11,7 +11,25 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY')
-const APP_URL = 'https://eliasgv04.github.io/torrenuevafutsal'
+const DEFAULT_APP_URL = 'https://eliasgv04.github.io/torrenuevafutsal'
+
+// The client tells us where it was loaded from (production or a local dev
+// server) so Stripe can redirect back to the right place — validated
+// against an allowlist so this can't be abused to redirect a completed
+// payment to an attacker-controlled page.
+function resolveAppUrl(candidate: unknown): string {
+  if (typeof candidate !== 'string') return DEFAULT_APP_URL
+  try {
+    const url = new URL(candidate)
+    const isProd = url.origin === 'https://eliasgv04.github.io' && url.pathname.startsWith('/torrenuevafutsal')
+    const isLocalDev = (url.hostname === 'localhost' || url.hostname === '127.0.0.1')
+    if (isProd) return `${url.origin}/torrenuevafutsal`
+    if (isLocalDev) return `${url.origin}${url.pathname}`.replace(/\/$/, '')
+  } catch {
+    // fall through to default
+  }
+  return DEFAULT_APP_URL
+}
 
 // Set these once the 3 one-time Prices exist in the Stripe dashboard (Test
 // mode first). Keep in sync with src/lib/plans.js.
@@ -50,9 +68,10 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userErr } = await callerClient.auth.getUser()
     if (userErr || !user) return json({ error: 'No autenticado' }, 401)
 
-    const { plan } = await req.json()
+    const { plan, appUrl: requestedAppUrl } = await req.json()
     const priceId = PRICE_IDS[plan]
     if (!priceId) return json({ error: 'Plan desconocido' }, 400)
+    const APP_URL = resolveAppUrl(requestedAppUrl)
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 

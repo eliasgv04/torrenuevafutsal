@@ -1058,7 +1058,10 @@ export const api = {
   // stripe-checkout Edge Function, wired up once Stripe API keys are set.
   async startCheckout(planId){
     if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
-    const { data, error } = await supabase.functions.invoke('stripe-checkout', { body: { plan: planId } })
+    // Tells Stripe where to redirect back to (production vs. a local dev
+    // server) — the function validates this against an allowlist itself.
+    const appUrl = window.location.origin + import.meta.env.BASE_URL
+    const { data, error } = await supabase.functions.invoke('stripe-checkout', { body: { plan: planId, appUrl } })
     if(error) throw error
     if(data?.error) throw new Error(data.error)
     return data
