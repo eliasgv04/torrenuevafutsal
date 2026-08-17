@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { ArrowLeftIcon, XIcon, CopyIcon, CheckIcon, PlayIcon, PauseIcon, PlusIcon, DownloadIcon } from './Icons'
 
 const PIZARRA_URL = import.meta.env.BASE_URL + 'futsalkit-pizarra.jpg'
+const BALL_URL     = import.meta.env.BASE_URL + 'balon-oficial.png'
 
 // Three rival squads (red / blue / purple) so an exercise involving more
 // than one opposing team — e.g. a rondo or a multi-team drill — can place
@@ -29,6 +30,27 @@ const RIVAL_GROUPS = [
   { label: 'Rival morado', color: RIVAL_PURPLE, presets: buildRivalGroup('rv-b', RIVAL_PURPLE, 12) },
 ]
 const RIVAL_PRESETS = RIVAL_GROUPS.flatMap(g => g.presets)
+
+// Training material — unlike players/rivals, coaches usually need several
+// copies on court at once (a slalom needs 6 cones, not 1), so these are
+// "stamp" chips that add a new instance every click rather than the
+// place/remove toggle used for unique individuals. The ball is the
+// exception: there's only ever one, so it reuses the toggle pattern.
+const MATERIAL_PRESETS = [
+  { id: 'mat-goal', kind: 'goal', name: 'Portería',     initX: 6,  initY: 50 },
+  { id: 'mat-cone', kind: 'cone', name: 'Cono',          initX: 50, initY: 15 },
+  { id: 'mat-ring', kind: 'ring', name: 'Disco abierto', initX: 50, initY: 50 },
+]
+// Placeholder look until a photo of the official ball is dropped in to
+// replace this rendering.
+const BALL_PRESET = { id: 'mat-ball', kind: 'ball', name: 'Balón', initX: 50, initY: 50 }
+
+const MATERIAL_STYLE = {
+  goal: { bg: '#f8fafc', icon: '#0f172a' },
+  cone: { bg: '#f97316', icon: '#ffffff' },
+  ring: { bg: '#38bdf8', icon: '#0f172a' },
+  ball: { bg: '#ffffff', icon: '#1a1a1a' },
+}
 
 // Formation slots for team players (left half), assigned sequentially
 const TEAM_SLOTS = [
@@ -105,6 +127,71 @@ const PolygonIcon = ({ size = 14, color = 'currentColor' }) => (
   </svg>
 )
 
+// Material is rendered as its actual silhouette (goal frame, cone, ring)
+// rather than an icon stuffed into a colored circle like players/rivals —
+// used both at full size on the court and shrunk down as toolbar icons, via
+// the same MaterialShape dispatcher below.
+// Real futsal goal posts — a vertical bar in alternating blue/white bands,
+// not a full goal frame.
+function GoalShape({ size, stripes = 6 }) {
+  const width = size * 0.75
+  const height = size * 2.6
+  return (
+    <div style={{
+      width, height, borderRadius: 3, overflow: 'hidden',
+      display: 'flex', flexDirection: 'column',
+      border: '1px solid rgba(0,0,0,0.35)',
+      boxShadow: '0 2px 4px rgba(0,0,0,0.45)',
+    }}>
+      {Array.from({ length: stripes }).map((_, i) => (
+        <div key={i} style={{ flex: 1, background: i % 2 === 0 ? '#1d4ed8' : '#ffffff' }} />
+      ))}
+    </div>
+  )
+}
+
+function ConeShape({ size, color }) {
+  return (
+    <div style={{
+      width: 0, height: 0,
+      borderLeft: `${size * 0.75}px solid transparent`,
+      borderRight: `${size * 0.75}px solid transparent`,
+      borderBottom: `${size * 1.5}px solid ${color}`,
+      filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.45))',
+    }} />
+  )
+}
+
+function RingShape({ size, color }) {
+  const thickness = Math.max(4, size * 0.28)
+  return (
+    <div style={{
+      width: size * 1.9, height: size * 1.9, borderRadius: '50%',
+      border: `${thickness}px solid ${color}`, boxSizing: 'border-box',
+      boxShadow: '0 2px 4px rgba(0,0,0,0.4)',
+    }} />
+  )
+}
+
+function BallShape({ size }) {
+  return (
+    <div style={{
+      width: size * 1.8, height: size * 1.8, borderRadius: '50%', overflow: 'hidden',
+      boxShadow: '0 2px 6px rgba(0,0,0,0.45)', border: '2px solid rgba(0,0,0,0.15)', background: '#fff',
+    }}>
+      <img src={BALL_URL} alt="Balón" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+    </div>
+  )
+}
+
+function MaterialShape({ kind, size = 22 }) {
+  const style = MATERIAL_STYLE[kind] || MATERIAL_STYLE.ball
+  if (kind === 'goal') return <GoalShape size={size} />
+  if (kind === 'cone') return <ConeShape size={size} color={style.bg} />
+  if (kind === 'ring') return <RingShape size={size} color={style.bg} />
+  return <BallShape size={size} />
+}
+
 // Tools that paint in the active palette color (as opposed to erase/text/move,
 // which repurpose the color swatches/pen sizes for other things or ignore them).
 const DRAW_TOOLS = ['draw', 'rect', 'polygon']
@@ -179,6 +266,7 @@ export default function TacticalBoard({ teamId, onClose }) {
   const courtRef    = useRef(null)
   const canvasRef   = useRef(null)
   const imgRef      = useRef(null)
+  const ballImgRef  = useRef(null) // preloaded so drawMaterialToken can draw the real photo, not just the on-screen <img>s
   const imgBounds   = useRef(null) // { left%, top%, width%, height% } of container
   const historyRef  = useRef([])
   const drawingRef  = useRef(false)
@@ -187,6 +275,7 @@ export default function TacticalBoard({ teamId, onClose }) {
   const dragText    = useRef(null)
   const textIdRef   = useRef(0)
   const frameIdRef  = useRef(1)
+  const materialIdRef = useRef(0)
   const playbackCancelRef = useRef(false)
   const rectStart   = useRef(null)
   const rectEnd     = useRef(null)
@@ -570,7 +659,9 @@ export default function TacticalBoard({ teamId, onClose }) {
     const isPortero = source.position === 'Portero'
 
     let x, y
-    if (isRival) {
+    if (isRival || source.kind) {
+      // Rivals and single-instance material (the ball) both use a fixed
+      // starting spot rather than the team formation slots below.
       x = toCtX(source.initX ?? 72)
       y = toCtY(source.initY ?? 50)
     } else {
@@ -596,9 +687,31 @@ export default function TacticalBoard({ teamId, onClose }) {
       position: source.position || '',
       short:    source.short   || null,
       color:    source.color   || null,
+      materialKind: source.kind || null,
       isPortero,
       isRival,
       x, y,
+    }])
+  }
+
+  // Equipment (goal/cone/pole/disc): unlike addToken above, this always adds
+  // a fresh instance — a coach placing cones for a slalom needs several on
+  // court at once, not a single toggleable one.
+  function addMaterialInstance(source) {
+    if (isPlaying) return
+    const id = `placed-${source.id}-${++materialIdRef.current}`
+    setActiveTokens(prev => [...prev, {
+      id,
+      sourceId: source.id,
+      dorsal: null,
+      name: source.name,
+      short: null,
+      color: null,
+      materialKind: source.kind,
+      isPortero: false,
+      isRival: false,
+      x: toCtX(source.initX ?? 50),
+      y: toCtY(source.initY ?? 50),
     }])
   }
 
@@ -787,6 +900,72 @@ export default function TacticalBoard({ teamId, onClose }) {
   // fetching PIZARRA_URL again, since this runs on every animation tick
   // during a recording (a fresh `new Image()` load per tick would be far
   // too slow).
+  // Canvas equivalents of the material icons (PNG/video export can't reuse
+  // the SVG components rendered on screen) — simplified shapes, not exact
+  // reproductions, since they're small enough that the silhouette reads
+  // fine at TOKEN_R scale.
+  // Mirrors the CSS shapes in MaterialShape (goal bracket / cone triangle /
+  // hollow ring / ball) — PNG/video export can't reuse DOM elements, so
+  // these are the canvas-drawn equivalents.
+  function drawMaterialToken(ctx, tok, tx, ty) {
+    const style = MATERIAL_STYLE[tok.materialKind] || MATERIAL_STYLE.ball
+    const r = TOKEN_R
+    ctx.save()
+    ctx.fillStyle = style.bg
+    ctx.strokeStyle = style.bg
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+
+    if (tok.materialKind === 'goal') {
+      // Vertical blue/white striped post, matching the real goal posts.
+      const barW = r * 0.75, barH = r * 2.6, stripes = 6
+      const stripeH = barH / stripes
+      for (let i = 0; i < stripes; i++) {
+        ctx.fillStyle = i % 2 === 0 ? '#1d4ed8' : '#ffffff'
+        ctx.fillRect(tx - barW / 2, ty - barH / 2 + i * stripeH, barW, stripeH)
+      }
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)'
+      ctx.lineWidth = 1.5
+      ctx.strokeRect(tx - barW / 2, ty - barH / 2, barW, barH)
+    } else if (tok.materialKind === 'cone') {
+      ctx.beginPath()
+      ctx.moveTo(tx, ty - r * 0.75)
+      ctx.lineTo(tx + r * 0.7, ty + r * 0.7)
+      ctx.lineTo(tx - r * 0.7, ty + r * 0.7)
+      ctx.closePath()
+      ctx.fill()
+    } else if (tok.materialKind === 'ring') {
+      ctx.lineWidth = Math.max(4, r * 0.32)
+      ctx.beginPath()
+      ctx.arc(tx, ty, r * 0.65, 0, Math.PI * 2)
+      ctx.stroke()
+    } else {
+      // Ball — crop the real photo into a circle; falls back to a plain
+      // white disc if it hasn't finished loading yet.
+      const rad = r * 0.75
+      const img = ballImgRef.current
+      ctx.beginPath()
+      ctx.arc(tx, ty, rad, 0, Math.PI * 2)
+      if (img && img.complete && img.naturalWidth) {
+        ctx.save()
+        ctx.clip()
+        const s = Math.min(img.naturalWidth, img.naturalHeight)
+        const sx = (img.naturalWidth - s) / 2
+        const sy = (img.naturalHeight - s) / 2
+        ctx.drawImage(img, sx, sy, s, s, tx - rad, ty - rad, rad * 2, rad * 2)
+        ctx.restore()
+      } else {
+        ctx.fill()
+      }
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(tx, ty, rad, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
+
   function drawBoardSnapshot(ctx, w, h, snapshotTokens, snapshotTextBoxes) {
     ctx.clearRect(0, 0, w, h)
     if (imgRef.current) ctx.drawImage(imgRef.current, 0, 0, w, h)
@@ -795,6 +974,11 @@ export default function TacticalBoard({ teamId, onClose }) {
     for (const tok of snapshotTokens) {
       const tx = (tok.x / 100) * w
       const ty = (tok.y / 100) * h
+
+      if (tok.materialKind) {
+        drawMaterialToken(ctx, tok, tx, ty)
+        continue
+      }
 
       ctx.beginPath()
       ctx.arc(tx, ty, TOKEN_R, 0, Math.PI * 2)
@@ -1026,6 +1210,50 @@ export default function TacticalBoard({ teamId, onClose }) {
           ))}
         </div>
 
+        <ToolDivider />
+
+        {/* Material — icon-only like the tool buttons, name shows on hover via title */}
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            onClick={() => placedIds.has(BALL_PRESET.id) ? removeToken(`placed-${BALL_PRESET.id}`) : addToken(BALL_PRESET, false)}
+            disabled={isPlaying}
+            title="Balón" aria-label="Balón"
+            style={{
+              width: 34, height: 34, borderRadius: 10, cursor: isPlaying ? 'not-allowed' : 'pointer', padding: 0,
+              border: 'none', background: placedIds.has(BALL_PRESET.id) ? '#2563EB' : 'rgba(255,255,255,0.12)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: isPlaying ? 0.5 : 1,
+            }}
+          >
+            <MaterialShape kind="ball" size={9} />
+          </button>
+          {MATERIAL_PRESETS.map(m => {
+            const count = tokens.filter(t => t.sourceId === m.id).length
+            return (
+              <button
+                key={m.id}
+                onClick={() => addMaterialInstance(m)}
+                disabled={isPlaying}
+                title={m.name} aria-label={m.name}
+                style={{
+                  position: 'relative', width: 34, height: 34, borderRadius: 10,
+                  cursor: isPlaying ? 'not-allowed' : 'pointer', padding: 0,
+                  border: 'none', background: 'rgba(255,255,255,0.12)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: isPlaying ? 0.5 : 1,
+                }}
+              >
+                <MaterialShape kind={m.kind} size={9} />
+                {count > 0 && (
+                  <span style={{
+                    position: 'absolute', top: -5, right: -5, minWidth: 15, height: 15, borderRadius: 8,
+                    background: '#2563EB', color: '#fff', fontSize: 9, fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px',
+                  }}>{count}</span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
         {tool === 'polygon' && polyPointCount > 0 && (
           <>
             <ToolDivider />
@@ -1156,6 +1384,7 @@ export default function TacticalBoard({ teamId, onClose }) {
         </div>
       </div>
 
+
       {/* ── 3-column main area ── */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0, background: '#172554' }}>
 
@@ -1191,6 +1420,9 @@ export default function TacticalBoard({ teamId, onClose }) {
             onLoad={computeImgBounds}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', pointerEvents: 'none', userSelect: 'none' }}
           />
+          {/* Hidden preload so drawMaterialToken can draw the real ball photo on
+              PNG/video export even before any ball token has been placed on screen. */}
+          <img ref={ballImgRef} src={BALL_URL} alt="" style={{ display: 'none' }} />
 
           {/* Drawing canvas */}
           <canvas
@@ -1209,44 +1441,18 @@ export default function TacticalBoard({ teamId, onClose }) {
 
           {/* Placed tokens */}
           {tokens.map(tok => (
-            <div
+            <PlacedToken
               key={tok.id}
-              onPointerDown={e => onTokenDown(e, tok.id)}
-              onPointerMove={e => onTokenMove(e, tok.id)}
-              onPointerUp={onTokenUp}
-              style={{
-                position: 'absolute',
-                left:  `calc(${tok.x}% - ${TOKEN_R}px)`,
-                top:   `calc(${tok.y}% - ${TOKEN_R}px)`,
-                width:  TOKEN_R * 2, height: TOKEN_R * 2, borderRadius: '50%',
-                background:   tokenColor(tok),
-                border:       '2.5px solid rgba(0,0,0,0.35)',
-                boxShadow:    '0 3px 10px rgba(0,0,0,0.55)',
-                display:      'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                cursor:       tool === 'move' && !isPlaying ? 'grab' : 'default',
-                touchAction:  'none', userSelect: 'none', zIndex: 20,
-                pointerEvents: tool === 'move' && !isPlaying ? 'auto' : 'none',
-                transition:   'box-shadow 0.1s',
-              }}
-            >
-              {tok.dorsal != null && (
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: 1, textShadow: '0 1px 3px rgba(0,0,0,0.6)' }}>
-                  {tok.dorsal}
-                </span>
-              )}
-              <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.92)', lineHeight: 1, marginTop: tok.dorsal != null ? 1 : 0, textAlign: 'center', padding: '0 2px', maxWidth: TOKEN_R * 2 - 4, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-                {shortLabel(tok)}
-              </span>
-              {tool === 'move' && !isPlaying && (
-                <button onClick={e => { e.stopPropagation(); removeToken(tok.id) }} style={{
-                  position: 'absolute', top: -8, right: -8,
-                  width: 18, height: 18, borderRadius: '50%', border: '1.5px solid #bbb',
-                  background: '#fff', color: '#333', fontSize: 10, fontWeight: 700,
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  padding: 0, lineHeight: 1,
-                }}><XIcon size={10}/></button>
-              )}
-            </div>
+              tok={tok}
+              tool={tool}
+              isPlaying={isPlaying}
+              tokenColor={tokenColor}
+              shortLabel={shortLabel}
+              onDown={onTokenDown}
+              onMove={onTokenMove}
+              onUp={onTokenUp}
+              onRemove={removeToken}
+            />
           ))}
 
           {/* Text boxes */}
@@ -1337,6 +1543,71 @@ export default function TacticalBoard({ teamId, onClose }) {
 
 // ── Sub-components ─────────────────────────────────────────────────────
 
+// A piece placed on the court — player/rival (colored circle + dorsal) or
+// material (its own natural shape via MaterialShape). The remove (×) button
+// only shows up on hover, for either kind, instead of being permanently
+// visible on every token while the "Mover" tool is active.
+function PlacedToken({ tok, tool, isPlaying, tokenColor, shortLabel, onDown, onMove, onUp, onRemove }) {
+  const [hover, setHover] = useState(false)
+  const interactive = tool === 'move' && !isPlaying
+
+  return (
+    <div
+      onPointerDown={e => onDown(e, tok.id)}
+      onPointerMove={e => onMove(e, tok.id)}
+      onPointerUp={onUp}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        position: 'absolute',
+        left: `calc(${tok.x}% - ${TOKEN_R}px)`,
+        top:  `calc(${tok.y}% - ${TOKEN_R}px)`,
+        width: TOKEN_R * 2, height: TOKEN_R * 2,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        cursor: interactive ? 'grab' : 'default',
+        touchAction: 'none', userSelect: 'none', zIndex: 20,
+        pointerEvents: interactive ? 'auto' : 'none',
+        overflow: 'visible',
+      }}
+    >
+      {tok.materialKind ? (
+        <MaterialShape kind={tok.materialKind} size={TOKEN_R} />
+      ) : (
+        <div style={{
+          width: '100%', height: '100%', borderRadius: '50%',
+          background: tokenColor(tok),
+          border: '2.5px solid rgba(0,0,0,0.35)',
+          boxShadow: '0 3px 10px rgba(0,0,0,0.55)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          transition: 'box-shadow 0.1s',
+        }}>
+          {tok.dorsal != null && (
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: 1, textShadow: '0 1px 3px rgba(0,0,0,0.6)' }}>
+              {tok.dorsal}
+            </span>
+          )}
+          <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.92)', lineHeight: 1, marginTop: tok.dorsal != null ? 1 : 0, textAlign: 'center', padding: '0 2px', maxWidth: TOKEN_R * 2 - 4, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+            {shortLabel(tok)}
+          </span>
+        </div>
+      )}
+      {interactive && hover && (
+        <button
+          onPointerDown={e => e.stopPropagation()}
+          onClick={e => { e.stopPropagation(); onRemove(tok.id) }}
+          style={{
+            position: 'absolute', top: -8, right: -8,
+            width: 18, height: 18, borderRadius: '50%', border: '1.5px solid #bbb',
+            background: '#fff', color: '#333', fontSize: 10, fontWeight: 700,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 0, lineHeight: 1,
+          }}
+        ><XIcon size={10}/></button>
+      )}
+    </div>
+  )
+}
+
 function SidePanel({ title, children }) {
   return (
     <div className="tactical-side-panel" style={{
@@ -1391,6 +1662,9 @@ function ToolDivider() {
   return <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.25)', flexShrink: 0 }}/>
 }
 
+// Unlike TokenChip (place/remove toggle for a unique item), clicking this
+// always adds one more instance — a coach setting up a slalom needs several
+// cones on court, not just one. The badge shows how many are placed.
 function FrameChip({ index, active, dimmed, canDelete, onSelect, onDelete }) {
   const [hover, setHover] = useState(false)
   return (
