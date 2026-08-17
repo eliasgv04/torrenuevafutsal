@@ -1,5 +1,6 @@
 import { Fragment, useState, useRef, useEffect, useCallback } from 'react'
 import { api } from '../lib/api'
+import ConfirmModal from './ConfirmModal'
 import { ArrowLeftIcon, XIcon, CopyIcon, CheckIcon, PlayIcon, PauseIcon, PlusIcon, DownloadIcon } from './Icons'
 
 const PIZARRA_URL = import.meta.env.BASE_URL + 'futsalkit-pizarra.jpg'
@@ -244,6 +245,7 @@ export default function TacticalBoard({ teamId, onClose }) {
   const [previewFrame, setPreviewFrame] = useState(null) // interpolated snapshot shown while playing/exporting
   const [isPlaying, setIsPlaying] = useState(false)
   const [isExportingVideo, setIsExportingVideo] = useState(false)
+  const [confirmClearFrames, setConfirmClearFrames] = useState(false)
   const [speedMs, setSpeedMs] = useState(1500) // ms per frame-to-frame transition
   const [editingTextId, setEditingTextId] = useState(null)
   const [tool,      setTool]      = useState('draw')
@@ -847,10 +849,9 @@ export default function TacticalBoard({ teamId, onClose }) {
   }
 
   function deleteAllFrames() {
-    if (isPlaying) return
-    if (!window.confirm('¿Borrar todos los frames y empezar de nuevo? Los dibujos a lápiz no se verán afectados.')) return
     setFrames([{ id: `frame-${++frameIdRef.current}`, tokens: [], textBoxes: [] }])
     setActiveFrameIndex(0)
+    setConfirmClearFrames(false)
   }
 
   // Drives both the on-screen preview and the video recording from the same
@@ -1376,7 +1377,7 @@ export default function TacticalBoard({ teamId, onClose }) {
         ><DownloadIcon size={13}/> {isExportingVideo ? 'Grabando…' : 'Exportar vídeo'}</button>
 
         <div style={{ marginLeft: 'auto' }}>
-          <button onClick={deleteAllFrames} disabled={isPlaying} title="Borrar todos los frames" style={{
+          <button onClick={() => setConfirmClearFrames(true)} disabled={isPlaying} title="Borrar todos los frames" style={{
             padding: '6px 12px', borderRadius: 20, fontSize: 12, cursor: isPlaying ? 'not-allowed' : 'pointer',
             border: '1px solid rgba(220,38,38,0.4)', background: 'rgba(220,38,38,0.12)', color: '#fca5a5',
             fontFamily: 'Poppins, sans-serif', fontWeight: 600, opacity: isPlaying ? 0.5 : 1,
@@ -1537,6 +1538,15 @@ export default function TacticalBoard({ teamId, onClose }) {
         </SidePanel>
 
       </div>
+
+      {confirmClearFrames && (
+        <ConfirmModal
+          title="Borrar todos los frames"
+          message="¿Seguro que quieres borrar todos los frames y empezar de nuevo? Los dibujos a lápiz no se verán afectados."
+          onConfirm={deleteAllFrames}
+          onCancel={() => setConfirmClearFrames(false)}
+        />
+      )}
     </div>
   )
 }
