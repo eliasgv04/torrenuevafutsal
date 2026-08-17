@@ -79,9 +79,9 @@ function PrivacyPolicy() {
           tratamiento de sus datos (nombre, apellidos, dorsal, posición y estadísticas) se basa en
           el <strong>consentimiento de su padre, madre o tutor/a legal</strong> (art. 8 del RGPD).
           Ese consentimiento lo recaba y custodia el club por sus propios medios (por ejemplo, en
-          la ficha de inscripción del jugador); la persona entrenadora que da de alta al jugador en
-          la aplicación confirma en ese momento que dispone de dicho consentimiento, y la aplicación
-          guarda constancia de la fecha en que se confirmó.
+          la ficha de inscripción del jugador); la aplicación no distingue a los jugadores menores
+          de los mayores de edad, por lo que es responsabilidad del club disponer de dicho
+          consentimiento antes de dar de alta a un jugador menor.
         </p>
       </Section>
 

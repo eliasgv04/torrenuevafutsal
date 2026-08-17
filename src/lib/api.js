@@ -625,13 +625,12 @@ export const api = {
       .sort((a,b)=>a.dorsal - b.dorsal)
   },
 
-  async createPlayer({team_id, name, surname, dorsal, position, birth_date, guardian_consent, guardian_consent_at}){
-    const extra = { birth_date: birth_date || null, guardian_consent: !!guardian_consent, guardian_consent_at: guardian_consent_at || null }
+  async createPlayer({team_id, name, surname, dorsal, position}){
     try{
       if(HAS_SUPABASE){
         const { data, error } = await supabase
           .from('players')
-          .insert({team_id, name, surname, dorsal, position, ...extra})
+          .insert({team_id, name, surname, dorsal, position})
           .select()
           .single()
         if(error) throw error
@@ -641,7 +640,7 @@ export const api = {
       console.error('Supabase error, falling back to localStorage:', e)
     }
     const players = lsGet('tf_players')
-    const player = {id:uid(), team_id, name, surname, dorsal, position, ...extra, created_at: new Date().toISOString()}
+    const player = {id:uid(), team_id, name, surname, dorsal, position, created_at: new Date().toISOString()}
     players.push(player)
     lsSet('tf_players', players)
     return player

@@ -66,12 +66,6 @@ create table if not exists players (
   surname text not null,
   dorsal integer not null,
   position text not null check (position in ('Portero', 'Cierre', 'Ala Diestro', 'Ala Zurdo', 'Pivot')),
-  -- Optional: lets the app flag minors in the roster. guardian_consent is
-  -- the coach affirming (not the app verifying) that the legal guardian's
-  -- consent was obtained, per RGPD art. 8 — see supabase/add-gdpr-fields.sql.
-  birth_date date,
-  guardian_consent boolean not null default false,
-  guardian_consent_at timestamp with time zone,
   created_at timestamp with time zone default timezone('utc', now())
 );
 
