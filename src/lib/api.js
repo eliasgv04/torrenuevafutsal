@@ -267,7 +267,7 @@ export const api = {
         const data = await withRetry(() =>
           supabase
             .from('exercises')
-            .select('id,name,objective,photo_url,category,dimensions,created_at,team_id,is_public')
+            .select('id,name,objective,description,photo_url,category,dimensions,created_at,team_id,is_public')
             .eq('team_id', teamId)
             .order('created_at', {ascending:false})
             .then(r => { if(r.error) throw r.error; return r.data })
@@ -281,12 +281,12 @@ export const api = {
     return items
   },
 
-  async createExercise({team_id,name,objective,file,category,dimensions,photo_url:existingPhotoUrl,is_public}){
+  async createExercise({team_id,name,objective,description,file,category,dimensions,photo_url:existingPhotoUrl,is_public}){
     let photo_url = existingPhotoUrl || null
     if(file) photo_url = await uploadPhoto(file)
     try{
       if(HAS_SUPABASE){
-        const { data, error } = await supabase.from('exercises').insert({team_id,name,objective,photo_url,category,dimensions,is_public:!!is_public}).select().single()
+        const { data, error } = await supabase.from('exercises').insert({team_id,name,objective,description,photo_url,category,dimensions,is_public:!!is_public}).select().single()
         if(error) throw error
         return { ...data, dimensions }
       }
@@ -294,18 +294,18 @@ export const api = {
       console.error('Supabase error, falling back to localStorage:', e)
     }
     const items = lsGet(LS_EXERCISES)
-    const ex = {id:uid(), team_id, name, objective, photo_url, category, dimensions, is_public:!!is_public, created_at:new Date().toISOString()}
+    const ex = {id:uid(), team_id, name, objective, description, photo_url, category, dimensions, is_public:!!is_public, created_at:new Date().toISOString()}
     items.unshift(ex)
     lsSet(LS_EXERCISES, items)
     return ex
   },
 
-  async updateExercise(exerciseId, {name,objective,category,file,dimensions,is_public}){
+  async updateExercise(exerciseId, {name,objective,description,category,file,dimensions,is_public}){
     let photo_url = null
     if(file) photo_url = await uploadPhoto(file)
     try{
       if(HAS_SUPABASE){
-        const payload = { name, objective, category, dimensions, is_public:!!is_public }
+        const payload = { name, objective, description, category, dimensions, is_public:!!is_public }
         if(photo_url) payload.photo_url = photo_url
         const { data, error } = await supabase.from('exercises').update(payload).eq('id', exerciseId).select().single()
         if(error) throw error
@@ -318,7 +318,7 @@ export const api = {
     const items = lsGet(LS_EXERCISES)
     const idx = items.findIndex(i=>i.id===exerciseId)
     if(idx>=0){
-      items[idx] = { ...items[idx], name, objective, category, dimensions, is_public:!!is_public }
+      items[idx] = { ...items[idx], name, objective, description, category, dimensions, is_public:!!is_public }
       if(photo_url) items[idx].photo_url = photo_url
       lsSet(LS_EXERCISES, items)
       return items[idx]

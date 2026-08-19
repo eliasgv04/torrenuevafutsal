@@ -16,8 +16,12 @@ create table if not exists exercises (
   team_id uuid references teams(id) on delete cascade,
   name text not null,
   objective text,
+  -- Free-text notes shown only in the exercise's detail view, never in a
+  -- generated PDF — see supabase/add-exercise-description.sql.
+  description text,
   photo_url text,
   category text,
+  dimensions text,
   created_at timestamp with time zone default timezone('utc', now())
 );
 

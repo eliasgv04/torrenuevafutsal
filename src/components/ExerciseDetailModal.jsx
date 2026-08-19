@@ -61,6 +61,12 @@ export default function ExerciseDetailModal({exercise, trainings, onClose, onEdi
         {showLightbox && (
           <Lightbox src={exercise.photo_url} alt={exercise.name} onClose={() => setShowLightbox(false)} />
         )}
+        {exercise.description && (
+          <div style={{marginTop:16}}>
+            <h4 style={{margin:'0 0 6px'}}>Descripción</h4>
+            <p className="small" style={{whiteSpace:'pre-wrap'}}>{exercise.description}</p>
+          </div>
+        )}
         <div style={{marginTop:16}}>
           <h4>Usado en entrenamientos ({usedIn.length})</h4>
           {usedIn.length === 0 ? (

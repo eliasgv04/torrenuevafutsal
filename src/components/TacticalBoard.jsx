@@ -33,18 +33,16 @@ const RIVAL_GROUPS = [
 const RIVAL_PRESETS = RIVAL_GROUPS.flatMap(g => g.presets)
 
 // Training material — unlike players/rivals, coaches usually need several
-// copies on court at once (a slalom needs 6 cones, not 1), so these are
-// "stamp" chips that add a new instance every click rather than the
-// place/remove toggle used for unique individuals. The ball is the
-// exception: there's only ever one, so it reuses the toggle pattern.
+// copies on court at once (a slalom needs 6 cones, a passing drill needs
+// more than 1 ball), so these are "stamp" chips that add a new instance
+// every click rather than the place/remove toggle used for unique
+// individuals (players, rivals).
 const MATERIAL_PRESETS = [
+  { id: 'mat-ball', kind: 'ball', name: 'Balón',         initX: 50, initY: 50 },
   { id: 'mat-goal', kind: 'goal', name: 'Portería',     initX: 6,  initY: 50 },
   { id: 'mat-cone', kind: 'cone', name: 'Cono',          initX: 50, initY: 15 },
   { id: 'mat-ring', kind: 'ring', name: 'Disco abierto', initX: 50, initY: 50 },
 ]
-// Placeholder look until a photo of the official ball is dropped in to
-// replace this rendering.
-const BALL_PRESET = { id: 'mat-ball', kind: 'ball', name: 'Balón', initX: 50, initY: 50 }
 
 const MATERIAL_STYLE = {
   goal: { bg: '#f8fafc', icon: '#0f172a' },
@@ -1213,20 +1211,9 @@ export default function TacticalBoard({ teamId, onClose }) {
 
         <ToolDivider />
 
-        {/* Material — icon-only like the tool buttons, name shows on hover via title */}
+        {/* Material — icon-only like the tool buttons, name shows on hover via
+            title. All repeatable "stamp" chips now, including the ball. */}
         <div style={{ display: 'flex', gap: 4 }}>
-          <button
-            onClick={() => placedIds.has(BALL_PRESET.id) ? removeToken(`placed-${BALL_PRESET.id}`) : addToken(BALL_PRESET, false)}
-            disabled={isPlaying}
-            title="Balón" aria-label="Balón"
-            style={{
-              width: 34, height: 34, borderRadius: 10, cursor: isPlaying ? 'not-allowed' : 'pointer', padding: 0,
-              border: 'none', background: placedIds.has(BALL_PRESET.id) ? '#2563EB' : 'rgba(255,255,255,0.12)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: isPlaying ? 0.5 : 1,
-            }}
-          >
-            <MaterialShape kind="ball" size={9} />
-          </button>
           {MATERIAL_PRESETS.map(m => {
             const count = tokens.filter(t => t.sourceId === m.id).length
             return (

@@ -4,6 +4,7 @@ import { CameraIcon, TrashIcon } from './Icons'
 export default function CreateExerciseModal({onCreate, onCancel, onSave, initial}){
   const [name,setName] = useState(initial?.name || '')
   const [objective,setObjective] = useState(initial?.objective || '')
+  const [description,setDescription] = useState(initial?.description || '')
   const [file,setFile] = useState(null)
   const [preview,setPreview] = useState(initial?.photo_url || null)
   const [category,setCategory] = useState(initial?.category || 'Inicio balón')
@@ -14,7 +15,7 @@ export default function CreateExerciseModal({onCreate, onCancel, onSave, initial
 
   function submit(){
     if(!name) return alert('Nombre requerido')
-    const payload = {name,objective,file,category,dimensions,is_public:isPublic}
+    const payload = {name,objective,description,file,category,dimensions,is_public:isPublic}
     if(onSave) return onSave(payload)
     if(onCreate) return onCreate(payload)
   }
@@ -99,6 +100,14 @@ export default function CreateExerciseModal({onCreate, onCancel, onSave, initial
         <input value={name} onChange={e=>setName(e.target.value)} placeholder="Ej: Bordalás" autoFocus />
         <label>Objetivo</label>
         <input value={objective} onChange={e=>setObjective(e.target.value)} placeholder="Ej: Mandar el balón a la mierda" />
+        <label>Descripción (opcional)</label>
+        <textarea
+          value={description}
+          onChange={e=>setDescription(e.target.value)}
+          placeholder="Detalles del ejercicio: cómo se ejecuta, normas, variantes..."
+          rows={4}
+        />
+        <p className="crest-upload-hint" style={{marginTop:-8}}>Solo se ve en el detalle del ejercicio, no se incluye en el PDF.</p>
         <label>Categoría</label>
         <input value={category} onChange={e=>setCategory(e.target.value)} placeholder="Ej: inicio balón" list="exercise-categories" />
         <datalist id="exercise-categories">
