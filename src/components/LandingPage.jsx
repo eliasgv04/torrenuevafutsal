@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import { BoardIcon, DumbbellIcon, TrophyIcon, BarChartIcon } from './Icons'
 import PitchLines from './PitchLines'
 import LegalModal from './LegalModal'
-import PlansSection from './PlansSection'
 
 const FEATURES = [
   { Icon: BoardIcon, label: 'Pizarra táctica' },
@@ -11,9 +10,8 @@ const FEATURES = [
   { Icon: BarChartIcon, label: 'Estadísticas' },
 ]
 
-export default function LandingPage({ onLogin, onRegister, onSelectPlan }) {
+export default function LandingPage({ onLogin, onRequestAccess }) {
   const [legalDoc, setLegalDoc] = useState(null)
-  const [showPlans, setShowPlans] = useState(false)
 
   return (
     <div className="landing-page">
@@ -32,11 +30,8 @@ export default function LandingPage({ onLogin, onRegister, onSelectPlan }) {
         </p>
         <div className="landing-ctas">
           <button className="btn btn-primary landing-btn-primary" onClick={onLogin}>Entrar</button>
-          <button className="btn btn-secondary landing-btn-secondary" onClick={onRegister}>
-            Crear cuenta
-          </button>
-          <button className="btn btn-secondary landing-btn-secondary" onClick={() => setShowPlans(true)}>
-            Ver planes
+          <button className="btn btn-secondary landing-btn-secondary" onClick={onRequestAccess}>
+            Solicitar acceso para tu club
           </button>
         </div>
 
@@ -63,24 +58,6 @@ export default function LandingPage({ onLogin, onRegister, onSelectPlan }) {
       </p>
 
       {legalDoc && <LegalModal initialDoc={legalDoc} onClose={() => setLegalDoc(null)} />}
-
-      {showPlans && (
-        <div className="modal-overlay" onClick={() => setShowPlans(false)}>
-          <div className="modal-content modal-wide" style={{ maxWidth: 900, background: 'transparent', boxShadow: 'none' }} onClick={(e) => e.stopPropagation()}>
-            <PlansSection
-              title="Planes"
-              subtitle="Un pago por temporada, sin renovación automática — cuando se te acaba, decides tú si sigues."
-              ctaLabel="Elegir este plan"
-              onSelectPlan={onSelectPlan}
-            />
-            <div style={{ textAlign: 'center', marginTop: 8 }}>
-              <button type="button" className="btn btn-cancel" style={{ display: 'inline-flex' }} onClick={() => setShowPlans(false)}>
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

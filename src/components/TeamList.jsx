@@ -6,26 +6,13 @@ import { SoccerIcon, TrophyIcon, PaletteIcon, ShieldIcon, TrashIcon } from './Ic
 
 export default function TeamList({onOpen}){
   const [teams,setTeams] = useState([])
-  const [subscription,setSubscription] = useState(null)
   const [creatingTeam,setCreatingTeam] = useState(false)
   const [confirmFor,setConfirmFor] = useState(null)
   const [brandingFor,setBrandingFor] = useState(null)
 
   useEffect(()=>{
     api.getTeams().then(setTeams)
-    api.getMySubscription().then(setSubscription)
   },[])
-
-  // max_teams === null means unlimited; a free-override account without a
-  // row yet (shouldn't normally happen, App.jsx already gates on having an
-  // active plan) is treated as unlimited too rather than blocking everyone.
-  const maxTeams = subscription?.max_teams ?? null
-  const atTeamLimit = maxTeams != null && teams.length >= maxTeams
-
-  function openCreate(){
-    if(atTeamLimit) return
-    setCreatingTeam(true)
-  }
 
   async function remove(team){
     setConfirmFor(team)
@@ -59,23 +46,15 @@ export default function TeamList({onOpen}){
     <div>
       <div className="header-top">
         <h2 style={{display:'flex',alignItems:'center',gap:8}}><SoccerIcon size={22}/> Equipos</h2>
-        <button className="btn btn-primary" onClick={openCreate} disabled={atTeamLimit} title={atTeamLimit ? `Tu plan permite hasta ${maxTeams} equipo${maxTeams===1?'':'s'}` : undefined}>
-          + Nuevo equipo
-        </button>
+        <button className="btn btn-primary" onClick={()=>setCreatingTeam(true)}>+ Nuevo equipo</button>
       </div>
-
-      {atTeamLimit && (
-        <p className="small" style={{color:'#dc2626',fontWeight:600}}>
-          Has alcanzado el límite de tu plan ({maxTeams} equipo{maxTeams===1?'':'s'}). Contacta con el administrador para ampliarlo.
-        </p>
-      )}
 
       {teams.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon"><TrophyIcon size={72}/></div>
           <h3>No hay equipos aún</h3>
           <p>Crea tu primer equipo para comenzar a registrar entrenamientos y ejercicios</p>
-          <button className="btn btn-primary" onClick={openCreate} style={{marginTop:'16px'}}>
+          <button className="btn btn-primary" onClick={()=>setCreatingTeam(true)} style={{marginTop:'16px'}}>
             Crear primer equipo
           </button>
         </div>

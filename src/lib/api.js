@@ -23,6 +23,33 @@ async function withRetry(fn, attempts = 3, baseDelayMs = 2000) {
   throw lastErr
 }
 
+// ── Short-lived read cache ─────────────────────────────────────────
+// Reopening a team (e.g. back to the team list and straight back in) was
+// re-fetching its exercises/players/trainings/matches from scratch every
+// single time, even seconds apart — a big share of Supabase egress for data
+// that almost never changes that fast. A short TTL kills that "just looked
+// at this" case while still refreshing regularly; mutations invalidate
+// their own key (or, when the mutated row's team_id isn't at hand, the
+// whole cache) so your own edits always show up immediately.
+const READ_CACHE_TTL_MS = 60_000
+const readCache = new Map() // key -> { data, ts }
+
+async function cachedRead(key, fetchFn){
+  const hit = readCache.get(key)
+  if(hit && Date.now() - hit.ts < READ_CACHE_TTL_MS) return hit.data
+  const data = await fetchFn()
+  readCache.set(key, { data, ts: Date.now() })
+  return data
+}
+
+function invalidateCache(key){
+  readCache.delete(key)
+}
+
+function clearCache(){
+  readCache.clear()
+}
+
 // LocalStorage keys
 const LS_TEAMS = 'tf_teams'
 const LS_EXERCISES = 'tf_exercises'
@@ -40,7 +67,12 @@ export async function uploadPhoto(file){
   if(HAS_SUPABASE){
     try{
       const name = `${Date.now()}_${file.name}`
-      const { data, error } = await supabase.storage.from('photos').upload(name, file)
+      // The timestamp makes every filename unique forever, so this content
+      // can never go stale under that URL — cache it for a year instead of
+      // Supabase's default ~1h, so repeat views don't re-download it from
+      // storage (that was driving egress far higher than the actual bytes
+      // stored would suggest).
+      const { data, error } = await supabase.storage.from('photos').upload(name, file, { cacheControl: '31536000' })
       if(!error){
         const url = supabase.storage.from('photos').getPublicUrl(name).data.publicUrl
         return url
@@ -242,6 +274,7 @@ export const api = {
   },
 
   async deleteTeam(teamId){
+    clearCache()
     try{
       if(HAS_SUPABASE){
         const { error } = await supabase.from('teams').delete().eq('id', teamId)
@@ -262,28 +295,30 @@ export const api = {
   },
 
   async getExercises(teamId){
-    try{
-      if(HAS_SUPABASE){
-        const data = await withRetry(() =>
-          supabase
-            .from('exercises')
-            .select('id,name,objective,description,photo_url,category,dimensions,created_at,team_id,is_public')
-            .eq('team_id', teamId)
-            .order('created_at', {ascending:false})
-            .then(r => { if(r.error) throw r.error; return r.data })
-        )
-        return data
+    return cachedRead(`exercises:${teamId}`, async () => {
+      try{
+        if(HAS_SUPABASE){
+          const data = await withRetry(() =>
+            supabase
+              .from('exercises')
+              .select('id,name,objective,description,photo_url,category,dimensions,created_at,team_id,is_public')
+              .eq('team_id', teamId)
+              .order('created_at', {ascending:false})
+              .then(r => { if(r.error) throw r.error; return r.data })
+          )
+          return data
+        }
+      }catch(e){
+        console.error('Supabase error, falling back to localStorage:', e)
       }
-    }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
-    }
-    const items = lsGet(LS_EXERCISES).filter(e=>e.team_id===teamId)
-    return items
+      return lsGet(LS_EXERCISES).filter(e=>e.team_id===teamId)
+    })
   },
 
   async createExercise({team_id,name,objective,description,file,category,dimensions,photo_url:existingPhotoUrl,is_public}){
     let photo_url = existingPhotoUrl || null
     if(file) photo_url = await uploadPhoto(file)
+    invalidateCache(`exercises:${team_id}`)
     try{
       if(HAS_SUPABASE){
         const { data, error } = await supabase.from('exercises').insert({team_id,name,objective,description,photo_url,category,dimensions,is_public:!!is_public}).select().single()
@@ -303,6 +338,7 @@ export const api = {
   async updateExercise(exerciseId, {name,objective,description,category,file,dimensions,is_public}){
     let photo_url = null
     if(file) photo_url = await uploadPhoto(file)
+    clearCache() // no team_id at hand here — cheap to just drop everything
     try{
       if(HAS_SUPABASE){
         const payload = { name, objective, description, category, dimensions, is_public:!!is_public }
@@ -334,6 +370,7 @@ export const api = {
   },
 
   async deleteExercise(exerciseId){
+    clearCache()
     try{
       if(HAS_SUPABASE){
         const { error } = await supabase.from('exercises').delete().eq('id', exerciseId)
@@ -349,25 +386,27 @@ export const api = {
   },
 
   async getTrainings(teamId){
-    try{
-      if(HAS_SUPABASE){
-        const data = await withRetry(() =>
-          supabase
-            .from('trainings')
-            .select('*')
-            .eq('team_id', teamId)
-            .order('training_date', {ascending:false})
-            .order('created_at', {ascending:false})
-            .then(r => { if(r.error) throw r.error; return r.data })
-        )
-        return data
+    return cachedRead(`trainings:${teamId}`, async () => {
+      try{
+        if(HAS_SUPABASE){
+          const data = await withRetry(() =>
+            supabase
+              .from('trainings')
+              .select('*')
+              .eq('team_id', teamId)
+              .order('training_date', {ascending:false})
+              .order('created_at', {ascending:false})
+              .then(r => { if(r.error) throw r.error; return r.data })
+          )
+          return data
+        }
+      }catch(e){
+        console.error('Supabase error, falling back to localStorage:', e)
       }
-    }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
-    }
-    return lsGet(LS_TRAININGS)
-      .filter(t=>t.team_id===teamId)
-      .sort((a,b)=>new Date(b.training_date) - new Date(a.training_date))
+      return lsGet(LS_TRAININGS)
+        .filter(t=>t.team_id===teamId)
+        .sort((a,b)=>new Date(b.training_date) - new Date(a.training_date))
+    })
   },
 
   async getTrainingItems(trainingId){
@@ -391,9 +430,18 @@ export const api = {
   },
 
   // Batched equivalent of getTrainingItems for many trainings at once (avoids
-  // N+1 round trips when loading a team's full training history).
+  // N+1 round trips when loading a team's full training history). This tends
+  // to be the single biggest payload of the four cached reads — every
+  // exercise snapshot (name, objective, category, dimensions, notes)
+  // repeated per training it was used in — so it's cached the same way,
+  // keyed off the exact set of training ids asked for.
   async getTrainingItemsByTrainingIds(trainingIds){
     if(!trainingIds || trainingIds.length === 0) return {}
+    const cacheKey = `training_items:${trainingIds.slice().sort().join(',')}`
+    return cachedRead(cacheKey, () => this._getTrainingItemsByTrainingIdsUncached(trainingIds))
+  },
+
+  async _getTrainingItemsByTrainingIdsUncached(trainingIds){
     try{
       if(HAS_SUPABASE){
         const CHUNK = 25
@@ -434,6 +482,7 @@ export const api = {
   },
 
   async createTraining({team_id, training_date, notes, items, selected_players, objectives, warmup}){
+    invalidateCache(`trainings:${team_id}`)
     try{
       if(HAS_SUPABASE){
         const { data: training, error: trainingError } = await supabase
@@ -502,6 +551,7 @@ export const api = {
   },
 
   async updateTraining(trainingId, {training_date, notes, attending_players, objectives, warmup}){
+    clearCache() // no team_id at hand here — cheap to just drop everything
     const payload = {}
     if(training_date !== undefined) payload.training_date = training_date
     if(notes !== undefined) payload.notes = notes || ''
@@ -535,6 +585,7 @@ export const api = {
   },
 
   async replaceTrainingItems(trainingId, items){
+    clearCache() // training id isn't known to any cached key set up front
     const list = (items || []).map((item) => ({
       training_id: trainingId,
       exercise_id: item.exercise_id || null,
@@ -577,6 +628,7 @@ export const api = {
   },
 
   async deleteTraining(trainingId){
+    clearCache()
     try{
       if(HAS_SUPABASE){
         const { error: itemsError } = await supabase
@@ -604,28 +656,31 @@ export const api = {
   // ========== FUTSAL MATCH MANAGEMENT ==========
   
   async getPlayers(teamId){
-    try{
-      if(HAS_SUPABASE){
-        await ensureLocalPlayersSynced()
-        const data = await withRetry(() =>
-          supabase
-            .from('players')
-            .select('*')
-            .eq('team_id', teamId)
-            .order('dorsal', {ascending:true})
-            .then(r => { if(r.error) throw r.error; return r.data })
-        )
-        return data
+    return cachedRead(`players:${teamId}`, async () => {
+      try{
+        if(HAS_SUPABASE){
+          await ensureLocalPlayersSynced()
+          const data = await withRetry(() =>
+            supabase
+              .from('players')
+              .select('*')
+              .eq('team_id', teamId)
+              .order('dorsal', {ascending:true})
+              .then(r => { if(r.error) throw r.error; return r.data })
+          )
+          return data
+        }
+      }catch(e){
+        console.error('Supabase error, falling back to localStorage:', e)
       }
-    }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
-    }
-    return lsGet('tf_players')
-      .filter(p=>p.team_id===teamId)
-      .sort((a,b)=>a.dorsal - b.dorsal)
+      return lsGet('tf_players')
+        .filter(p=>p.team_id===teamId)
+        .sort((a,b)=>a.dorsal - b.dorsal)
+    })
   },
 
   async createPlayer({team_id, name, surname, dorsal, position}){
+    invalidateCache(`players:${team_id}`)
     try{
       if(HAS_SUPABASE){
         const { data, error } = await supabase
@@ -647,6 +702,7 @@ export const api = {
   },
 
   async deletePlayer(playerId){
+    clearCache()
     try{
       if(HAS_SUPABASE){
         const { error } = await supabase.from('players').delete().eq('id', playerId)
@@ -660,25 +716,28 @@ export const api = {
   },
 
   async getMatches(teamId){
-    try{
-      if(HAS_SUPABASE){
-        const { data, error } = await supabase
-          .from('matches')
-          .select('*')
-          .eq('team_id', teamId)
-          .order('match_date', {ascending:false})
-        if(error) throw error
-        return data
+    return cachedRead(`matches:${teamId}`, async () => {
+      try{
+        if(HAS_SUPABASE){
+          const { data, error } = await supabase
+            .from('matches')
+            .select('*')
+            .eq('team_id', teamId)
+            .order('match_date', {ascending:false})
+          if(error) throw error
+          return data
+        }
+      }catch(e){
+        console.error('Supabase error, falling back to localStorage:', e)
       }
-    }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
-    }
-    return lsGet('tf_matches')
-      .filter(m=>m.team_id===teamId)
-      .sort((a,b)=>new Date(b.match_date) - new Date(a.match_date))
+      return lsGet('tf_matches')
+        .filter(m=>m.team_id===teamId)
+        .sort((a,b)=>new Date(b.match_date) - new Date(a.match_date))
+    })
   },
 
   async createMatch({team_id, rival_team_name, match_date, place, jornada, is_home, notes}){
+    invalidateCache(`matches:${team_id}`)
     try{
       if(HAS_SUPABASE){
         const { data, error } = await supabase
@@ -723,6 +782,7 @@ export const api = {
   },
 
   async finalizeMatch({match_id, home_goals, away_goals, ended_at, notes}){
+    clearCache()
     try{
       if(HAS_SUPABASE){
         const { data, error } = await supabase
@@ -761,6 +821,7 @@ export const api = {
   },
 
   async updateMatchNotes({match_id, notes}){
+    clearCache()
     try{
       if(HAS_SUPABASE){
         const { data, error } = await supabase
@@ -786,6 +847,7 @@ export const api = {
   },
 
   async updateCalledUpPlayers({match_id, player_ids}){
+    clearCache()
     try{
       if(HAS_SUPABASE){
         const { data, error } = await supabase
@@ -811,6 +873,7 @@ export const api = {
   },
 
   async deleteMatch(matchId){
+    clearCache()
     try{
       if(HAS_SUPABASE){
         const { error } = await supabase.from('matches').delete().eq('id', matchId)
@@ -1028,42 +1091,17 @@ export const api = {
       .sort((a,b)=>new Date(b.match_date||0) - new Date(a.match_date||0))
   },
 
-  // Access requests are no longer submitted from the public app (signup is
-  // now self-service, gated by billing instead) — getAccessRequests /
-  // rejectAccessRequest / adminCreateAccount below stay only as an internal
-  // tool for the admin to manually create a special-case account.
-
-  // ── Billing ────────────────────────────────────────────────────────
-  // Whether the logged-in account has paid access this season or an admin
-  // marked it free — the gate App.jsx checks before showing the dashboard.
-  async hasActivePlan(){
-    if(!HAS_SUPABASE) return true // localStorage fallback mode: no billing to enforce
-    const { data, error } = await supabase.rpc('user_has_active_plan')
-    if(error) return false
-    return !!data
-  },
-
-  async getMySubscription(){
-    if(!HAS_SUPABASE) return null
-    const { data: { user } } = await supabase.auth.getUser()
-    if(!user) return null
-    const { data, error } = await supabase.from('subscriptions').select('*').eq('user_id', user.id).maybeSingle()
-    if(error) throw error
-    return data
-  },
-
-  // Creates a Stripe Checkout session (one-time payment) for the given plan
-  // and returns its hosted URL to redirect the browser to. Requires the
-  // stripe-checkout Edge Function, wired up once Stripe API keys are set.
-  async startCheckout(planId){
+  // Public "solicitar acceso" form. Deliberately never .select()s the row
+  // back — RLS only grants INSERT here, no SELECT, so requesting the row
+  // back would fail. Admin accounts review/approve requests from AdminPanel
+  // (see the admin.* helpers below); no other account can read this table.
+  async requestAccess({team_name, contact_name, contact_email, message, privacy_accepted}){
     if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
-    // Tells Stripe where to redirect back to (production vs. a local dev
-    // server) — the function validates this against an allowlist itself.
-    const appUrl = window.location.origin + import.meta.env.BASE_URL
-    const { data, error } = await supabase.functions.invoke('stripe-checkout', { body: { plan: planId, appUrl } })
+    if(!privacy_accepted) throw new Error('Debes aceptar la política de privacidad')
+    const { error } = await supabase.from('access_requests').insert({
+      team_name, contact_name, contact_email, message: message || null, privacy_accepted: true
+    })
     if(error) throw error
-    if(data?.error) throw new Error(data.error)
-    return data
   },
 
   // ── Admin ──────────────────────────────────────────────────────────
@@ -1146,18 +1184,6 @@ export const api = {
     if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
     const { error } = await supabase.from('team_users').delete().eq('team_id', teamId).eq('user_id', userId)
     if(error) throw error
-  },
-
-  // Manual override — grants/revokes free access or corrects a plan by
-  // hand, independent of Stripe (e.g. the club's own team).
-  async setAccountPlan({user_id, status, plan, max_teams}){
-    if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
-    const { data, error } = await supabase.functions.invoke('admin-accounts', {
-      body: {action:'set_plan', user_id, status, plan: plan || null, max_teams: max_teams ?? null}
-    })
-    if(error) throw error
-    if(data?.error) throw new Error(data.error)
-    return data
   }
 }
 
