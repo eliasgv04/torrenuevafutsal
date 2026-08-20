@@ -58,6 +58,7 @@ Deno.serve(async (req) => {
           id: u.id,
           email: u.email,
           created_at: u.created_at,
+          last_sign_in_at: u.last_sign_in_at || null,
           is_admin: adminIds.has(u.id),
           teams: (teamLinks || [])
             .filter(l => l.user_id === u.id && l.teams)

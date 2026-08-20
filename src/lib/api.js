@@ -6,6 +6,28 @@ if(!HAS_SUPABASE){
   console.warn('Supabase is not configured. App is using localStorage fallback, data will not sync across devices.')
 }
 
+// Every Supabase call that fails in the app used to just vanish into
+// console.error, invisible unless a user happened to notice and report it
+// (e.g. the PGRST204 "missing column" errors from a migration that was
+// never run). This writes it to app_logs instead, so it shows up in
+// AdminPanel — fire-and-forget, and never throws itself, since a failure to
+// log must never break the feature that failed in the first place.
+export async function logAppError(error, extra){
+  console.error('App error:', error)
+  if(!HAS_SUPABASE) return
+  try{
+    const { data: { session } } = await supabase.auth.getSession()
+    await supabase.from('app_logs').insert({
+      message: error?.message || String(error),
+      code: error?.code || null,
+      details: error?.stack || (extra ? JSON.stringify(extra) : null),
+      user_email: session?.user?.email || null,
+    })
+  }catch{
+    // logging must never cascade into a second failure
+  }
+}
+
 // Retry a Supabase query up to `attempts` times with increasing delay.
 // Handles transient timeouts (e.g. free-tier project waking from pause).
 async function withRetry(fn, attempts = 3, baseDelayMs = 2000) {
@@ -210,7 +232,7 @@ export const api = {
         return data
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const items = lsGet(LS_TEAMS)
     if(items.length===0){
@@ -237,7 +259,7 @@ export const api = {
         return { id, created_at, ...payload }
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const items = lsGet(LS_TEAMS)
     const t = {id:uid(), ...payload, created_at: new Date().toISOString()}
@@ -260,7 +282,7 @@ export const api = {
         return data
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
 
     const items = lsGet(LS_TEAMS)
@@ -281,7 +303,7 @@ export const api = {
         if(error) throw error
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const teams = lsGet(LS_TEAMS).filter(team => team.id !== teamId)
     const exercises = lsGet(LS_EXERCISES).filter(exercise => exercise.team_id !== teamId)
@@ -309,7 +331,7 @@ export const api = {
           return data
         }
       }catch(e){
-        console.error('Supabase error, falling back to localStorage:', e)
+        logAppError(e)
       }
       return lsGet(LS_EXERCISES).filter(e=>e.team_id===teamId)
     })
@@ -326,7 +348,7 @@ export const api = {
         return { ...data, dimensions }
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const items = lsGet(LS_EXERCISES)
     const ex = {id:uid(), team_id, name, objective, description, photo_url, category, dimensions, is_public:!!is_public, created_at:new Date().toISOString()}
@@ -348,7 +370,7 @@ export const api = {
         return { ...data, dimensions }
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
 
     const items = lsGet(LS_EXERCISES)
@@ -377,7 +399,7 @@ export const api = {
         if(error) throw error
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const exercises = lsGet(LS_EXERCISES).filter(exercise => exercise.id !== exerciseId)
     const trainingItems = lsGet(LS_TRAINING_ITEMS).filter(item => item.exercise_id !== exerciseId)
@@ -401,7 +423,7 @@ export const api = {
           return data
         }
       }catch(e){
-        console.error('Supabase error, falling back to localStorage:', e)
+        logAppError(e)
       }
       return lsGet(LS_TRAININGS)
         .filter(t=>t.team_id===teamId)
@@ -422,7 +444,7 @@ export const api = {
         return data
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     return lsGet(LS_TRAINING_ITEMS)
       .filter(i=>i.training_id===trainingId)
@@ -467,7 +489,7 @@ export const api = {
         return byTraining
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const idSet = new Set(trainingIds)
     const byTraining = {}
@@ -512,7 +534,7 @@ export const api = {
         return training
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
 
     const trainings = lsGet(LS_TRAININGS)
@@ -571,7 +593,7 @@ export const api = {
         return data
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
 
     const trainings = lsGet(LS_TRAININGS)
@@ -614,7 +636,7 @@ export const api = {
         return true
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
 
     const allItems = lsGet(LS_TRAINING_ITEMS).filter(item => item.training_id !== trainingId)
@@ -644,7 +666,7 @@ export const api = {
         return true
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const trainings = lsGet(LS_TRAININGS).filter(t => t.id !== trainingId)
     const items = lsGet(LS_TRAINING_ITEMS).filter(item => item.training_id !== trainingId)
@@ -671,7 +693,7 @@ export const api = {
           return data
         }
       }catch(e){
-        console.error('Supabase error, falling back to localStorage:', e)
+        logAppError(e)
       }
       return lsGet('tf_players')
         .filter(p=>p.team_id===teamId)
@@ -692,7 +714,7 @@ export const api = {
         return data
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const players = lsGet('tf_players')
     const player = {id:uid(), team_id, name, surname, dorsal, position, created_at: new Date().toISOString()}
@@ -709,7 +731,7 @@ export const api = {
         if(error) throw error
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const players = lsGet('tf_players')
     lsSet('tf_players', players.filter(p=>p.id!==playerId))
@@ -728,7 +750,7 @@ export const api = {
           return data
         }
       }catch(e){
-        console.error('Supabase error, falling back to localStorage:', e)
+        logAppError(e)
       }
       return lsGet('tf_matches')
         .filter(m=>m.team_id===teamId)
@@ -758,7 +780,7 @@ export const api = {
         return data
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const matches = lsGet('tf_matches')
     const match = {
@@ -801,7 +823,7 @@ export const api = {
         return data
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const matches = lsGet('tf_matches')
     const idx = matches.findIndex(m=>m.id===match_id)
@@ -834,7 +856,7 @@ export const api = {
         return data
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const matches = lsGet('tf_matches')
     const idx = matches.findIndex(m=>m.id===match_id)
@@ -860,7 +882,7 @@ export const api = {
         return data
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const matches = lsGet('tf_matches')
     const idx = matches.findIndex(m=>m.id===match_id)
@@ -880,7 +902,7 @@ export const api = {
         if(error) throw error
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const matches = lsGet('tf_matches')
     lsSet('tf_matches', matches.filter(m=>m.id!==matchId))
@@ -897,7 +919,7 @@ export const api = {
         return data
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     return lsGet('tf_match_player_stats')
       .filter(s=>s.match_id===matchId)
@@ -915,7 +937,7 @@ export const api = {
         return data
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const stats = lsGet('tf_match_player_stats')
     const idx = stats.findIndex(s=>s.match_id===match_id && s.player_id===player_id)
@@ -938,7 +960,7 @@ export const api = {
         return data
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const stats = lsGet('tf_rival_team_stats').filter(s=>s.match_id===matchId)
     return stats[0] || null
@@ -956,7 +978,7 @@ export const api = {
         return data
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const stats = lsGet('tf_rival_team_stats')
     const idx = stats.findIndex(s=>s.match_id===match_id)
@@ -978,7 +1000,7 @@ export const api = {
         return data
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     return lsGet('tf_on_field_players')
       .filter(o=>o.match_id===matchId)
@@ -996,7 +1018,7 @@ export const api = {
         return data
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const onField = lsGet('tf_on_field_players')
     const record = {id:uid(), match_id, player_id, entry_minute, exit_minute:null, created_at: new Date().toISOString()}
@@ -1018,7 +1040,7 @@ export const api = {
         return data
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const onField = lsGet('tf_on_field_players')
     const idx = onField.findIndex(o=>o.id===onFieldId)
@@ -1070,7 +1092,7 @@ export const api = {
           }))
       }
     }catch(e){
-      console.error('Supabase error, falling back to localStorage:', e)
+      logAppError(e)
     }
     const playerStats = lsGet('tf_match_player_stats').filter(s=>s.player_id===playerId)
     const matches = lsGet('tf_matches')
@@ -1183,6 +1205,19 @@ export const api = {
   async removeTeamFromAccount(teamId, userId){
     if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
     const { error } = await supabase.from('team_users').delete().eq('team_id', teamId).eq('user_id', userId)
+    if(error) throw error
+  },
+
+  async getAppLogs(){
+    if(!HAS_SUPABASE) return []
+    const { data, error } = await supabase.from('app_logs').select('*').order('created_at', {ascending:false}).limit(200)
+    if(error) throw error
+    return data
+  },
+
+  async clearAppLogs(){
+    if(!HAS_SUPABASE) throw new Error('Supabase no configurado')
+    const { error } = await supabase.from('app_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     if(error) throw error
   }
 }
