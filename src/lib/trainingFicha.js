@@ -28,8 +28,6 @@ export const SECTION_CATEGORY = {
   [SECTION.FINAL]: ['Defensa portero jugador', 'Ataque portero jugador']
 }
 
-export const MAIN_SLOTS = 6
-
 export const COURT_SIZES = ['20x20', '28x20', '40x20']
 export const DEFAULT_COURT_SIZE = '40x20'
 
@@ -158,38 +156,24 @@ export function isFichaTraining(training){
 
 // Slot helpers ------------------------------------------------------
 
-export function emptyMainSlots(){
-  return Array.from({ length: MAIN_SLOTS }, () => null)
-}
-
+// Every section is a plain array now — no section has a fixed number of
+// slots any more (used to be 1 for posesión/final, 6 for principal); the
+// coach adds and removes as many as a given session actually needs.
 export function sectionsFromItems(items){
   const list = Array.isArray(items) ? items.slice() : []
   list.sort((a, b) => Number(a.order_index ?? 0) - Number(b.order_index ?? 0))
 
   const sections = {
-    [SECTION.WARMUP_INICIO]: null,
+    [SECTION.WARMUP_INICIO]: [],
     [SECTION.WARMUP_MOVIMIENTOS]: [],
-    [SECTION.WARMUP_POSESION]: null,
-    main: emptyMainSlots(),
-    [SECTION.FINAL]: null
+    [SECTION.WARMUP_POSESION]: [],
+    [SECTION.MAIN]: [],
+    [SECTION.FINAL]: []
   }
 
-  let mainCursor = 0
   for(const item of list){
     const sec = sectionFromCategory(item.category)
-    if(sec === SECTION.WARMUP_INICIO){
-      if(!sections[SECTION.WARMUP_INICIO]) sections[SECTION.WARMUP_INICIO] = item
-    }else if(sec === SECTION.WARMUP_MOVIMIENTOS){
-      sections[SECTION.WARMUP_MOVIMIENTOS].push(item)
-    }else if(sec === SECTION.WARMUP_POSESION){
-      if(!sections[SECTION.WARMUP_POSESION]) sections[SECTION.WARMUP_POSESION] = item
-    }else if(sec === SECTION.MAIN){
-      if(mainCursor < MAIN_SLOTS){
-        sections.main[mainCursor++] = item
-      }
-    }else if(sec === SECTION.FINAL){
-      if(!sections[SECTION.FINAL]) sections[SECTION.FINAL] = item
-    }
+    sections[sec].push(item)
   }
   return sections
 }

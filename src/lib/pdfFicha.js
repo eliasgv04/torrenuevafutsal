@@ -70,11 +70,11 @@ function ensureFontsLoaded(){
 
 function buildHtml({ training, ficha, sessionNumber, teamName, attending, extras, photos, logoDataUrl, accentStart, accentEnd }){
   const sections = sectionsFromItems(training.items || [])
-  const inicio = sections[SECTION.WARMUP_INICIO]
+  const inicio = sections[SECTION.WARMUP_INICIO] || []
   const movs = sections[SECTION.WARMUP_MOVIMIENTOS] || []
-  const posesion = sections[SECTION.WARMUP_POSESION]
-  const main = sections.main
-  const final = sections[SECTION.FINAL]
+  const posesion = sections[SECTION.WARMUP_POSESION] || []
+  const main = sections[SECTION.MAIN] || []
+  const final = sections[SECTION.FINAL] || []
 
   const playerLookup = new Map(attending.map((p) => [p.id, p]))
   const extraLookup = new Map((extras || []).map((e) => [e.id, e]))
@@ -99,18 +99,14 @@ function buildHtml({ training, ficha, sessionNumber, teamName, attending, extras
   const teams = (ficha.teams || []).slice(0, 3)
   while(teams.length < 3) teams.push({ name: '', player_ids: [] })
 
-  function calCard(item, photo){
-    if(!item) return '<div class="cal-empty">—</div>'
-    const meta = safe(item.dimensions)
-    return `
-      <div class="cal-card">
-        ${photo ? `<div class="cal-photo-wrap"><img src="${photo}" alt="" /></div>` : ''}
-        <div class="cal-card-text">
-          <div class="cal-title">${escapeHtml(item.exercise_name || '')}</div>
-          ${meta ? `<div class="cal-meta">${escapeHtml(meta)}</div>` : ''}
-        </div>
-      </div>
-    `
+  // Used for sections that can hold more than one exercise (Inicio balón,
+  // Movimientos) — a compact text list instead of photo cards, since the
+  // ficha renders onto a fixed A4 canvas and can't grow to fit N photos.
+  function calList(items){
+    if(!items || items.length === 0) return '<div class="cal-empty">—</div>'
+    return `<div class="cal-mov-list">
+      ${items.map((m) => `<div class="cal-mov-item"><span class="cal-mov-bullet"></span><span>${escapeHtml(m.exercise_name || '')}</span></div>`).join('')}
+    </div>`
   }
 
   function mainCard(item, photo, num){
@@ -134,12 +130,14 @@ function buildHtml({ training, ficha, sessionNumber, teamName, attending, extras
     `
   }
 
-  const finalParsed = final ? parseItemNotes(final.notes) : { text: '', extra_text: '' }
-  const finalLines = [
-    final ? `${final.exercise_name}${final.category ? ' · ' + final.category : ''}` : '',
-    finalParsed.text,
-    ficha.final_extra_text
-  ].filter(Boolean)
+  const finalItemLines = final.flatMap((item) => {
+    const parsed = parseItemNotes(item.notes)
+    return [
+      `${item.exercise_name}${item.category ? ' · ' + item.category : ''}`,
+      parsed.text
+    ].filter(Boolean)
+  })
+  const finalLines = [...finalItemLines, ficha.final_extra_text].filter(Boolean)
   const finalDisplay = finalLines.length ? finalLines.join('\n') : ''
 
   return `
@@ -584,27 +582,24 @@ function buildHtml({ training, ficha, sessionNumber, teamName, attending, extras
       <div class="cal-grid">
         <div class="cal-col">
           <div class="cal-col-label">Inicio balón / Lúdico</div>
-          ${calCard(inicio, photos.inicio)}
+          ${calList(inicio)}
         </div>
         <div class="cal-col">
           <div class="cal-col-label">Movimientos tác/téc</div>
-          ${movs.length === 0
-            ? '<div class="cal-empty">—</div>'
-            : `<div class="cal-mov-list">
-                ${movs.map((m) => `<div class="cal-mov-item"><span class="cal-mov-bullet"></span><span>${escapeHtml(m.exercise_name || '')}</span></div>`).join('')}
-              </div>`
-          }
+          ${calList(movs)}
         </div>
         <div class="cal-col">
           <div class="cal-col-label">Posesión</div>
-          ${calCard(posesion, photos.posesion)}
+          ${calList(posesion)}
         </div>
       </div>
 
       <!-- PARTE PRINCIPAL -->
       <h2 class="section-title">Parte principal</h2>
       <div class="main-grid">
-        ${[0,1,2,3,4,5].map((idx) => mainCard(main[idx], photos.main[idx], idx + 1)).join('')}
+        ${main.length > 0
+          ? main.map((item, idx) => mainCard(item, photos.main[idx], idx + 1)).join('')
+          : mainCard(null, null, 1)}
       </div>
 
       <!-- PARTE FINAL -->
@@ -632,11 +627,9 @@ export async function exportTrainingFichaToPdf(training, players, exercises, tea
   const extras = ficha.extra_attendees || []
 
   const sections = sectionsFromItems(training.items || [])
-  const [logoDataUrl, inicioPhoto, posesionPhoto, ...mainPhotos] = await Promise.all([
+  const [logoDataUrl, ...mainPhotos] = await Promise.all([
     fetchAsDataUrl(team?.crest_url),
-    fetchAsDataUrl(pickPhotoUrl(sections[SECTION.WARMUP_INICIO], exerciseLookup)),
-    fetchAsDataUrl(pickPhotoUrl(sections[SECTION.WARMUP_POSESION], exerciseLookup)),
-    ...sections.main.map((m) => fetchAsDataUrl(pickPhotoUrl(m, exerciseLookup)))
+    ...sections[SECTION.MAIN].map((m) => fetchAsDataUrl(pickPhotoUrl(m, exerciseLookup)))
   ])
 
   await ensureFontsLoaded()
@@ -646,7 +639,7 @@ export async function exportTrainingFichaToPdf(training, players, exercises, tea
     sessionNumber: sessionNumber ? String(sessionNumber) : '',
     teamName,
     attending, extras,
-    photos: { inicio: inicioPhoto, posesion: posesionPhoto, main: mainPhotos },
+    photos: { main: mainPhotos },
     logoDataUrl,
     accentStart,
     accentEnd

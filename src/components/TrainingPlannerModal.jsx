@@ -4,7 +4,6 @@ import { EditIcon, CalendarIcon, GripIcon, ChevronUpIcon, ChevronDownIcon } from
 import {
   SECTION,
   SECTION_CATEGORY,
-  MAIN_SLOTS,
   COURT_SIZES,
   DEFAULT_COURT_SIZE,
   EMPTY_FICHA,
@@ -57,6 +56,38 @@ function slotFromItem(item){
   }
 }
 
+// Every exercise section (inicio, movimientos, posesión, principal, final)
+// works the same way now: a list you add to and remove from freely, no
+// section has a fixed slot count any more. One shared hook instead of
+// repeating add/remove/setAt five times.
+function useSlotList(getInitial){
+  const [slots, setSlots] = useState(() => {
+    const list = getInitial()
+    return list.length > 0 ? list : [emptySlot()]
+  })
+
+  function add(){
+    setSlots((current) => [...current, emptySlot()])
+  }
+
+  function remove(idx){
+    setSlots((current) => {
+      const next = current.filter((_, i) => i !== idx)
+      return next.length > 0 ? next : [emptySlot()]
+    })
+  }
+
+  function setAt(idx, updater){
+    setSlots((current) => current.map((slot, i) => i === idx ? updater(slot) : slot))
+  }
+
+  function clearLabel(idx){
+    return slots.length > 1 || slots[idx].exercise_id ? 'Quitar' : 'Vaciar'
+  }
+
+  return { slots, setSlots, add, remove, setAt, clearLabel }
+}
+
 export default function TrainingPlannerModal({exercises, players, onSave, onCancel, initial}){
   const initialDate = initial?.training_date || new Date().toISOString().slice(0,10)
   const initialFicha = readFicha(initial?.objectives) || EMPTY_FICHA
@@ -107,14 +138,11 @@ export default function TrainingPlannerModal({exercises, players, onSave, onCanc
     return init
   })
 
-  const [warmupInicio, setWarmupInicio] = useState(slotFromItem(initialSections[SECTION.WARMUP_INICIO]))
-  const [warmupMovs, setWarmupMovs] = useState(() => {
-    const list = initialSections[SECTION.WARMUP_MOVIMIENTOS] || []
-    return list.length > 0 ? list.map(slotFromItem) : [emptySlot()]
-  })
-  const [warmupPosesion, setWarmupPosesion] = useState(slotFromItem(initialSections[SECTION.WARMUP_POSESION]))
-  const [mainSlots, setMainSlots] = useState(() => initialSections.main.map(slotFromItem))
-  const [finalSlot, setFinalSlot] = useState(slotFromItem(initialSections[SECTION.FINAL]))
+  const inicio = useSlotList(() => (initialSections[SECTION.WARMUP_INICIO] || []).map(slotFromItem))
+  const movimientos = useSlotList(() => (initialSections[SECTION.WARMUP_MOVIMIENTOS] || []).map(slotFromItem))
+  const posesion = useSlotList(() => (initialSections[SECTION.WARMUP_POSESION] || []).map(slotFromItem))
+  const main = useSlotList(() => (initialSections[SECTION.MAIN] || []).map(slotFromItem))
+  const final = useSlotList(() => (initialSections[SECTION.FINAL] || []).map(slotFromItem))
   const [finalExtraText, setFinalExtraText] = useState(initialFicha.final_extra_text || '')
   const [saving, setSaving] = useState(false)
 
@@ -176,14 +204,6 @@ export default function TrainingPlannerModal({exercises, players, onSave, onCanc
     setTeams((current) => current.map((team) => ({ ...team, player_ids: (team.player_ids || []).filter((id) => id !== playerId) })))
   }
 
-  function setMainSlotAt(index, updater){
-    setMainSlots((current) => current.map((slot, i) => i === index ? updater(slot) : slot))
-  }
-
-  function clearSlot(setter){
-    setter(emptySlot())
-  }
-
   async function handlePhotoChange(event, current, setter){
     const file = event.target.files?.[0]
     if(!file) return
@@ -194,21 +214,6 @@ export default function TrainingPlannerModal({exercises, players, onSave, onCanc
 
   function clearPhoto(current, setter){
     setter({ ...current, custom_photo_url: null, custom_photo_pending_file: null })
-  }
-
-  function addMovimiento(){
-    setWarmupMovs((current) => [...current, emptySlot()])
-  }
-
-  function removeMovimiento(idx){
-    setWarmupMovs((current) => {
-      const next = current.filter((_, i) => i !== idx)
-      return next.length > 0 ? next : [emptySlot()]
-    })
-  }
-
-  function setMovimientoAt(idx, updater){
-    setWarmupMovs((current) => current.map((slot, i) => i === idx ? updater(slot) : slot))
   }
 
   async function buildItemFromSlot(slot, orderIndex){
@@ -242,24 +247,12 @@ export default function TrainingPlannerModal({exercises, players, onSave, onCanc
     try{
       const items = []
       let order = 0
-      const inicioItem = await buildItemFromSlot(warmupInicio, order)
-      if(inicioItem){ items.push(inicioItem); order++ }
-
-      for(const movSlot of warmupMovs){
-        const item = await buildItemFromSlot(movSlot, order)
-        if(item){ items.push(item); order++ }
+      for(const group of [inicio.slots, movimientos.slots, posesion.slots, main.slots, final.slots]){
+        for(const slot of group){
+          const item = await buildItemFromSlot(slot, order)
+          if(item){ items.push(item); order++ }
+        }
       }
-
-      const posesionItem = await buildItemFromSlot(warmupPosesion, order)
-      if(posesionItem){ items.push(posesionItem); order++ }
-
-      for(const mainSlot of mainSlots){
-        const item = await buildItemFromSlot(mainSlot, order)
-        if(item){ items.push(item); order++ }
-      }
-
-      const finalItem = await buildItemFromSlot(finalSlot, order)
-      if(finalItem){ items.push(finalItem); order++ }
 
       const fichaPayload = writeFicha({}, {
         session_time: sessionTime,
@@ -431,55 +424,37 @@ export default function TrainingPlannerModal({exercises, players, onSave, onCanc
         <section className="planner-section">
           <h4 className="planner-heading">Calentamiento</h4>
           <div className="planner-warmup">
-            <ExerciseSlot
-              label="1 · Inicio balón / Lúdico"
-              slot={warmupInicio}
-              setSlot={setWarmupInicio}
+            <SlotGroup
+              title="1 · Inicio balón / Lúdico"
+              group={inicio}
               exercises={exercisesByCategory[SECTION.WARMUP_INICIO]}
-              onClear={() => clearSlot(setWarmupInicio)}
-              onPhotoChange={(e) => handlePhotoChange(e, warmupInicio, setWarmupInicio)}
-              onPhotoClear={() => clearPhoto(warmupInicio, setWarmupInicio)}
+              labelPrefix="Inicio balón"
+              minimal
             />
 
-            <div className="planner-mov-block">
-              <div className="planner-mov-header">
-                <strong>2 · Movimientos tác/téc</strong>
-                <button type="button" className="planner-add-btn" onClick={addMovimiento}>+ Añadir</button>
-              </div>
-              {warmupMovs.map((slot, idx) => (
-                <ExerciseSlot
-                  key={idx}
-                  label={`Movimiento ${idx + 1}`}
-                  slot={slot}
-                  setSlot={(next) => setMovimientoAt(idx, () => next)}
-                  exercises={exercisesByCategory[SECTION.WARMUP_MOVIMIENTOS]}
-                  onClear={() => removeMovimiento(idx)}
-                  clearLabel={warmupMovs.length > 1 || slot.exercise_id ? 'Quitar' : 'Vaciar'}
-                  minimal
-                />
-              ))}
-            </div>
+            <SlotGroup
+              title="2 · Movimientos tác/téc"
+              group={movimientos}
+              exercises={exercisesByCategory[SECTION.WARMUP_MOVIMIENTOS]}
+              labelPrefix="Movimiento"
+              minimal
+            />
 
-            <ExerciseSlot
-              label="3 · Posesión"
-              slot={warmupPosesion}
-              setSlot={setWarmupPosesion}
+            <SlotGroup
+              title="3 · Posesión"
+              group={posesion}
               exercises={exercisesByCategory[SECTION.WARMUP_POSESION]}
-              onClear={() => clearSlot(setWarmupPosesion)}
-              onPhotoChange={(e) => handlePhotoChange(e, warmupPosesion, setWarmupPosesion)}
-              onPhotoClear={() => clearPhoto(warmupPosesion, setWarmupPosesion)}
+              labelPrefix="Posesión"
+              minimal
             />
           </div>
         </section>
 
         <section className="planner-section">
           <h4 className="planner-heading">Parte principal</h4>
-          <p className="small" style={{margin:'0 0 10px'}}>Arrastra los ejercicios para reordenar, o usa las flechas.</p>
+          <p className="small" style={{margin:'0 0 10px'}}>Añade los que necesites y arrástralos para reordenar.</p>
           <MainSlotsList
-            slots={mainSlots}
-            onSlotChange={setMainSlotAt}
-            onMove={(from, to) => setMainSlots((current) => arrayMove(current, from, to))}
-            onReorder={(from, to) => setMainSlots((current) => arrayMove(current, from, to))}
+            group={main}
             exercises={exercisesByCategory[SECTION.MAIN]}
             handlePhotoChange={handlePhotoChange}
             clearPhoto={clearPhoto}
@@ -488,14 +463,13 @@ export default function TrainingPlannerModal({exercises, players, onSave, onCanc
 
         <section className="planner-section">
           <h4 className="planner-heading">Parte final</h4>
-          <ExerciseSlot
-            label="Defensa o ataque portero-jugador (opcional)"
-            slot={finalSlot}
-            setSlot={setFinalSlot}
+          <SlotGroup
+            title="Defensa o ataque portero-jugador (opcional)"
+            group={final}
             exercises={exercisesByCategory[SECTION.FINAL]}
-            onClear={() => clearSlot(setFinalSlot)}
+            labelPrefix="Final"
             hidePhoto
-            allowEmpty
+            hideHeaderWhenSingle
           />
           <Field label="Notas de la parte final (siempre aparece en la ficha)">
             <textarea
@@ -533,13 +507,40 @@ function Field({label, children}){
   )
 }
 
+// A titled block of slots with a "+ Añadir" button — the same shape used by
+// every exercise section (inicio, movimientos, posesión, final). "Parte
+// principal" gets its own variant below since it also drags to reorder.
+function SlotGroup({title, group, exercises, labelPrefix, minimal, hidePhoto, hideHeaderWhenSingle}){
+  return (
+    <div className="planner-mov-block">
+      <div className="planner-mov-header">
+        <strong>{title}</strong>
+        <button type="button" className="planner-add-btn" onClick={group.add}>+ Añadir</button>
+      </div>
+      {group.slots.map((slot, idx) => (
+        <ExerciseSlot
+          key={idx}
+          label={hideHeaderWhenSingle && group.slots.length === 1 ? '' : `${labelPrefix} ${idx + 1}`}
+          slot={slot}
+          setSlot={(next) => group.setAt(idx, () => next)}
+          exercises={exercises}
+          onClear={() => group.remove(idx)}
+          clearLabel={group.clearLabel(idx)}
+          minimal={minimal}
+          hidePhoto={hidePhoto}
+        />
+      ))}
+    </div>
+  )
+}
+
 function ExerciseSlot({label, slot, setSlot, exercises, onClear, clearLabel = 'Vaciar', onPhotoChange, onPhotoClear, hidePhoto, allowEmpty, minimal, dragHandle}){
   const update = (patch) => setSlot({ ...slot, ...patch })
   return (
     <div className="planner-slot">
       <div className="planner-slot-header">
         {dragHandle}
-        <strong className="planner-slot-label">{label}</strong>
+        {label && <strong className="planner-slot-label">{label}</strong>}
         {(slot.exercise_id || allowEmpty) && (
           <button type="button" className="planner-slot-clear" onClick={onClear}>{clearLabel}</button>
         )}
@@ -595,7 +596,8 @@ function ExerciseSlot({label, slot, setSlot, exercises, onClear, clearLabel = 'V
   )
 }
 
-function MainSlotsList({slots, onSlotChange, onMove, onReorder, exercises, handlePhotoChange, clearPhoto}){
+function MainSlotsList({group, exercises, handlePhotoChange, clearPhoto}){
+  const { slots, add, remove, setAt, clearLabel } = group
   const ids = useMemo(() => slots.map((_, idx) => `main-${idx}`), [slots])
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -608,40 +610,41 @@ function MainSlotsList({slots, onSlotChange, onMove, onReorder, exercises, handl
     const from = ids.indexOf(active.id)
     const to = ids.indexOf(over.id)
     if(from < 0 || to < 0) return
-    onReorder(from, to)
+    group.setSlots((current) => arrayMove(current, from, to))
   }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-        <div className="planner-main-list">
-          {slots.map((slot, idx) => (
-            <SortableMainSlot
-              key={ids[idx]}
-              id={ids[idx]}
-              index={idx}
-              slot={slot}
-              exercises={exercises}
-              onChange={(updater) => onSlotChange(idx, updater)}
-              onClear={() => onSlotChange(idx, () => ({
-                exercise_id: '', planned_count: 1, dimensions: DEFAULT_COURT_SIZE, notes: '',
-                extra_text: '', custom_photo_url: null, custom_photo_pending_file: null
-              }))}
-              onMoveUp={() => onMove(idx, idx - 1)}
-              onMoveDown={() => onMove(idx, idx + 1)}
-              canMoveUp={idx > 0}
-              canMoveDown={idx < slots.length - 1}
-              onPhotoChange={(e) => handlePhotoChange(e, slot, (next) => onSlotChange(idx, () => next))}
-              onPhotoClear={() => clearPhoto(slot, (next) => onSlotChange(idx, () => next))}
-            />
-          ))}
-        </div>
-      </SortableContext>
-    </DndContext>
+    <>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+          <div className="planner-main-list">
+            {slots.map((slot, idx) => (
+              <SortableMainSlot
+                key={ids[idx]}
+                id={ids[idx]}
+                index={idx}
+                slot={slot}
+                exercises={exercises}
+                onChange={(updater) => setAt(idx, updater)}
+                onClear={() => remove(idx)}
+                clearLabel={clearLabel(idx)}
+                onMoveUp={() => group.setSlots((current) => arrayMove(current, idx, idx - 1))}
+                onMoveDown={() => group.setSlots((current) => arrayMove(current, idx, idx + 1))}
+                canMoveUp={idx > 0}
+                canMoveDown={idx < slots.length - 1}
+                onPhotoChange={(e) => handlePhotoChange(e, slot, (next) => setAt(idx, () => next))}
+                onPhotoClear={() => clearPhoto(slot, (next) => setAt(idx, () => next))}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+      <button type="button" className="planner-add-btn" style={{marginTop:8}} onClick={add}>+ Añadir ejercicio</button>
+    </>
   )
 }
 
-function SortableMainSlot({id, index, slot, exercises, onChange, onClear, onMoveUp, onMoveDown, canMoveUp, canMoveDown, onPhotoChange, onPhotoClear}){
+function SortableMainSlot({id, index, slot, exercises, onChange, onClear, clearLabel, onMoveUp, onMoveDown, canMoveUp, canMoveDown, onPhotoChange, onPhotoClear}){
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -656,6 +659,7 @@ function SortableMainSlot({id, index, slot, exercises, onChange, onClear, onMove
         setSlot={(next) => onChange(() => next)}
         exercises={exercises}
         onClear={onClear}
+        clearLabel={clearLabel}
         onPhotoChange={onPhotoChange}
         onPhotoClear={onPhotoClear}
         dragHandle={
