@@ -609,7 +609,7 @@ export default function TeamPage({ team, onBack }) {
         <TeamStatsView
           teamId={team.id}
           teamName={team.name}
-          exercises={exercises}
+          exercises={enrichedExercises}
           trainings={trainings}
           onClose={() => setView("hub")}
         />
