@@ -27,20 +27,29 @@ function escapeHtml(value){
 function cleanText(value){ return String(value ?? '').replace(/\s+/g, ' ').trim() }
 function safe(value, fallback = ''){ const t = cleanText(value); return t || fallback }
 
-async function fetchAsDataUrl(url){
-  if(!url) return null
-  if(url.startsWith('data:')) return url
-  try{
-    const res = await fetch(url, { mode: 'cors', credentials: 'omit' })
-    if(!res.ok) return null
-    const blob = await res.blob()
-    return await new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(reader.result)
-      reader.onerror = reject
-      reader.readAsDataURL(blob)
-    })
-  }catch(_){ return null }
+// Loads the URL as an <img> and repaints it onto a canvas rather than doing
+// fetch()+blob()+FileReader — that path inherits whatever (sometimes wrong
+// or missing) Content-Type Storage sends back, which can produce a data URL
+// the <img> tag refuses to render (shows as a broken image). Drawing to a
+// canvas sidesteps that: toDataURL always emits a well-formed image/png.
+function fetchAsDataUrl(url){
+  if(!url) return Promise.resolve(null)
+  if(url.startsWith('data:')) return Promise.resolve(url)
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      try{
+        const canvas = document.createElement('canvas')
+        canvas.width = img.naturalWidth || img.width
+        canvas.height = img.naturalHeight || img.height
+        canvas.getContext('2d').drawImage(img, 0, 0)
+        resolve(canvas.toDataURL('image/png'))
+      }catch(_){ resolve(null) }
+    }
+    img.onerror = () => resolve(null)
+    img.src = url
+  })
 }
 
 function pickPhotoUrl(item, exerciseLookup){
@@ -106,6 +115,22 @@ function buildHtml({ training, ficha, sessionNumber, teamName, attending, extras
     if(!items || items.length === 0) return '<div class="cal-empty">—</div>'
     return `<div class="cal-mov-list">
       ${items.map((m) => `<div class="cal-mov-item"><span class="cal-mov-bullet"></span><span>${escapeHtml(m.exercise_name || '')}</span></div>`).join('')}
+    </div>`
+  }
+
+  // Used for Posesión: the photo is the main visual (fills most of the
+  // card), the exercise name is just a small caption underneath.
+  function calListPhoto(items, photos){
+    if(!items || items.length === 0) return '<div class="cal-empty">—</div>'
+    return `<div class="cal-photo-list">
+      ${items.map((m, idx) => `
+        <div class="cal-photo-card">
+          ${photos[idx]
+            ? `<img class="cal-photo-card-img" src="${photos[idx]}" alt="" />`
+            : '<div class="cal-photo-card-img cal-photo-card-img-empty"></div>'}
+          <div class="cal-photo-card-name">${escapeHtml(m.exercise_name || '')}</div>
+        </div>
+      `).join('')}
     </div>`
   }
 
@@ -401,6 +426,18 @@ function buildHtml({ training, ficha, sessionNumber, teamName, attending, extras
           width: 5px; height: 5px; border-radius: 50%; background: #0f172a;
           flex-shrink: 0; margin-top: 4px;
         }
+        .cal-photo-list {
+          display: flex; flex-direction: column; gap: 6px;
+        }
+        .cal-photo-card-img {
+          width: 100%; height: 54px; object-fit: cover; border-radius: 5px;
+          border: 1px solid #cbd5e1; background: #f1f5f9; display: block;
+        }
+        .cal-photo-card-img-empty { background: #f1f5f9; }
+        .cal-photo-card-name {
+          font-size: 9px; font-weight: 600; color: #0f172a;
+          line-height: 1.2; margin-top: 3px;
+        }
 
         /* ===== PARTE PRINCIPAL ===== */
         .main-grid {
@@ -590,7 +627,7 @@ function buildHtml({ training, ficha, sessionNumber, teamName, attending, extras
         </div>
         <div class="cal-col">
           <div class="cal-col-label">Posesión</div>
-          ${calList(posesion)}
+          ${calListPhoto(posesion, photos.posesion)}
         </div>
       </div>
 
@@ -627,9 +664,10 @@ export async function exportTrainingFichaToPdf(training, players, exercises, tea
   const extras = ficha.extra_attendees || []
 
   const sections = sectionsFromItems(training.items || [])
-  const [logoDataUrl, ...mainPhotos] = await Promise.all([
+  const [logoDataUrl, posesionPhotos, mainPhotos] = await Promise.all([
     fetchAsDataUrl(team?.crest_url),
-    ...sections[SECTION.MAIN].map((m) => fetchAsDataUrl(pickPhotoUrl(m, exerciseLookup)))
+    Promise.all(sections[SECTION.WARMUP_POSESION].map((m) => fetchAsDataUrl(pickPhotoUrl(m, exerciseLookup)))),
+    Promise.all(sections[SECTION.MAIN].map((m) => fetchAsDataUrl(pickPhotoUrl(m, exerciseLookup))))
   ])
 
   await ensureFontsLoaded()
@@ -639,7 +677,7 @@ export async function exportTrainingFichaToPdf(training, players, exercises, tea
     sessionNumber: sessionNumber ? String(sessionNumber) : '',
     teamName,
     attending, extras,
-    photos: { main: mainPhotos },
+    photos: { posesion: posesionPhotos, main: mainPhotos },
     logoDataUrl,
     accentStart,
     accentEnd

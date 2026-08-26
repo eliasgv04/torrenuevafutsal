@@ -446,6 +446,7 @@ export default function TrainingPlannerModal({exercises, players, onSave, onCanc
               exercises={exercisesByCategory[SECTION.WARMUP_POSESION]}
               labelPrefix="Posesión"
               minimal
+              showPhoto
             />
           </div>
         </section>
@@ -510,7 +511,7 @@ function Field({label, children}){
 // A titled block of slots with a "+ Añadir" button — the same shape used by
 // every exercise section (inicio, movimientos, posesión, final). "Parte
 // principal" gets its own variant below since it also drags to reorder.
-function SlotGroup({title, group, exercises, labelPrefix, minimal, hidePhoto, hideHeaderWhenSingle}){
+function SlotGroup({title, group, exercises, labelPrefix, minimal, hidePhoto, hideHeaderWhenSingle, showPhoto}){
   return (
     <div className="planner-mov-block">
       <div className="planner-mov-header">
@@ -528,14 +529,18 @@ function SlotGroup({title, group, exercises, labelPrefix, minimal, hidePhoto, hi
           clearLabel={group.clearLabel(idx)}
           minimal={minimal}
           hidePhoto={hidePhoto}
+          showPhoto={showPhoto}
         />
       ))}
     </div>
   )
 }
 
-function ExerciseSlot({label, slot, setSlot, exercises, onClear, clearLabel = 'Vaciar', onPhotoChange, onPhotoClear, hidePhoto, allowEmpty, minimal, dragHandle}){
+function ExerciseSlot({label, slot, setSlot, exercises, onClear, clearLabel = 'Vaciar', onPhotoChange, onPhotoClear, hidePhoto, allowEmpty, minimal, showPhoto, dragHandle}){
   const update = (patch) => setSlot({ ...slot, ...patch })
+  const selectedExercise = showPhoto && slot.exercise_id
+    ? (exercises || []).find((ex) => ex.id === slot.exercise_id)
+    : null
   return (
     <div className="planner-slot">
       <div className="planner-slot-header">
@@ -550,6 +555,11 @@ function ExerciseSlot({label, slot, setSlot, exercises, onClear, clearLabel = 'V
         exercises={exercises}
         onChange={(id) => update({ exercise_id: id })}
       />
+      {selectedExercise?.photo_url && (
+        <div className="planner-slot-thumb">
+          <img src={selectedExercise.photo_url} alt="" />
+        </div>
+      )}
       {slot.exercise_id && !minimal && (
         <>
           <div className="planner-slot-row">
