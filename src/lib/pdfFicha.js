@@ -27,6 +27,19 @@ function escapeHtml(value){
 function cleanText(value){ return String(value ?? '').replace(/\s+/g, ' ').trim() }
 function safe(value, fallback = ''){ const t = cleanText(value); return t || fallback }
 
+// e.g. "mar 14/09/26" — shown next to the session number so the ficha's
+// date is readable at a glance without having to open the training.
+function formatSessionDate(dateStr){
+  if(!dateStr) return ''
+  const d = new Date(dateStr)
+  if(Number.isNaN(d.getTime())) return ''
+  const weekday = d.toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', '')
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const year = String(d.getFullYear()).slice(-2)
+  return `${weekday} ${day}/${month}/${year}`
+}
+
 // Loads the URL as an <img> and repaints it onto a canvas rather than doing
 // fetch()+blob()+FileReader — that path inherits whatever (sometimes wrong
 // or missing) Content-Type Storage sends back, which can produce a data URL
@@ -165,6 +178,8 @@ function buildHtml({ training, ficha, sessionNumber, teamName, attending, extras
   const finalLines = [...finalItemLines, ficha.final_extra_text].filter(Boolean)
   const finalDisplay = finalLines.length ? finalLines.join('\n') : ''
 
+  const sessionDate = formatSessionDate(training.training_date)
+
   return `
     <div class="ficha">
       <style>
@@ -241,6 +256,11 @@ function buildHtml({ training, ficha, sessionNumber, teamName, attending, extras
           color: #0f172a; margin-top: 2px;
           font-variant-numeric: tabular-nums;
           min-height: 14px;
+        }
+        .meta-sub {
+          font-size: 9px; font-weight: 600;
+          color: #475569; margin-top: 1px;
+          font-variant-numeric: tabular-nums;
         }
 
         /* ===== INFO ROW (video + equipment) ===== */
@@ -536,7 +556,7 @@ function buildHtml({ training, ficha, sessionNumber, teamName, attending, extras
 
       <!-- META STRIP -->
       <div class="meta-strip">
-        <div class="meta-cell"><div class="meta-label">Sesión</div><div class="meta-value">${escapeHtml(sessionNumber || '—')}</div></div>
+        <div class="meta-cell"><div class="meta-label">Sesión</div><div class="meta-value">${escapeHtml(sessionNumber || '—')}</div>${sessionDate ? `<div class="meta-sub">${escapeHtml(sessionDate)}</div>` : ''}</div>
         <div class="meta-cell"><div class="meta-label">Hora</div><div class="meta-value">${escapeHtml(safe(ficha.session_time, '—'))}</div></div>
         <div class="meta-cell"><div class="meta-label">Duración</div><div class="meta-value">${escapeHtml(safe(ficha.duration, '—'))}</div></div>
         <div class="meta-cell"><div class="meta-label">Lugar</div><div class="meta-value">${escapeHtml(safe(ficha.place, '—'))}</div></div>

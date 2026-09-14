@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { api } from '../lib/api'
 import ConfirmModal from './ConfirmModal'
-import { ArrowLeftIcon, TrashIcon } from './Icons'
+import { ArrowLeftIcon, TrashIcon, EditIcon, ArrowUpIcon } from './Icons'
+import { playerFormScore, formTrend, formRotationDeg } from '../lib/playerForm'
 
 function fmtMins(secs){
   const s = Math.max(0, Number(secs) || 0)
@@ -35,6 +36,7 @@ export default function PlayerManagement({ teamId, onClose, initialPlayerId }) {
   const [loadingMatches, setLoadingMatches] = useState(false)
   const [confirmDeleteFor, setConfirmDeleteFor] = useState(null)
   const [formData, setFormData] = useState({ name: '', surname: '', dorsal: '', position: 'Portero' })
+  const [editingPlayerId, setEditingPlayerId] = useState(null)
 
   useEffect(() => {
     loadPlayers()
@@ -44,23 +46,63 @@ export default function PlayerManagement({ teamId, onClose, initialPlayerId }) {
   const loadPlayers = async () => {
     const data = await api.getPlayers(teamId)
     setPlayers(data)
+    loadAllPlayerMatches(data)
   }
 
-  const handleAddPlayer = async (e) => {
+  // Preloads every player's match history in one shot so the form arrow can
+  // show on every roster card right away, not just the one being inspected.
+  // Also warms playerMatchesMap so openDetail below skips its own fetch.
+  const loadAllPlayerMatches = async (playerList) => {
+    const entries = await Promise.all(
+      playerList.map(async (p) => [p.id, await api.getPlayerMatches(p.id)])
+    )
+    setPlayerMatchesMap((prev) => ({ ...prev, ...Object.fromEntries(entries) }))
+  }
+
+  // player.id -> { score, trend, rotation } | null (null = not enough match data yet)
+  const formByPlayer = useMemo(() => {
+    const map = {}
+    for (const player of players) {
+      const matches = playerMatchesMap[player.id]
+      const score = matches ? playerFormScore(matches) : null
+      map[player.id] = score == null ? null : { score, trend: formTrend(score), rotation: formRotationDeg(score) }
+    }
+    return map
+  }, [players, playerMatchesMap])
+
+  const handleSubmitPlayer = async (e) => {
     e.preventDefault()
     if (!formData.name || !formData.surname || !formData.dorsal) return
 
-    await api.createPlayer({
-      team_id: teamId,
+    const payload = {
       name: formData.name,
       surname: formData.surname,
       dorsal: parseInt(formData.dorsal),
       position: formData.position
-    })
+    }
 
-    setFormData({ name: '', surname: '', dorsal: '', position: 'Portero' })
-    setShowForm(false)
+    if (editingPlayerId) {
+      const updated = await api.updatePlayer(editingPlayerId, payload)
+      setDetailPlayer((current) => (current && current.id === editingPlayerId ? { ...current, ...updated } : current))
+    } else {
+      await api.createPlayer({ team_id: teamId, ...payload })
+    }
+
+    closeForm()
     loadPlayers()
+  }
+
+  const closeForm = () => {
+    setFormData({ name: '', surname: '', dorsal: '', position: 'Portero' })
+    setEditingPlayerId(null)
+    setShowForm(false)
+  }
+
+  const handleStartEdit = (player) => {
+    setFormData({ name: player.name, surname: player.surname, dorsal: String(player.dorsal ?? ''), position: player.position })
+    setEditingPlayerId(player.id)
+    setDetailPlayer(null)
+    setShowForm(true)
   }
 
   const handleDeletePlayer = async () => {
@@ -106,6 +148,7 @@ export default function PlayerManagement({ teamId, onClose, initialPlayerId }) {
   const detailMatches = detailPlayer ? (playerMatchesMap[detailPlayer.id] || []) : []
   const detailTotals = sumMatches(detailMatches)
   const recentMatches = detailMatches.slice(0, 3)
+  const detailForm = detailPlayer ? formByPlayer[detailPlayer.id] : null
 
   const attendedTrainings = detailPlayer
     ? trainings.filter(t => Array.isArray(t.attending_players) && t.attending_players.includes(detailPlayer.id)).length
@@ -135,7 +178,7 @@ export default function PlayerManagement({ teamId, onClose, initialPlayerId }) {
       </div>
 
       {showForm && (
-        <form onSubmit={handleAddPlayer} className="player-form">
+        <form onSubmit={handleSubmitPlayer} className="player-form">
           <input
             type="text"
             placeholder="Nombre"
@@ -169,8 +212,8 @@ export default function PlayerManagement({ teamId, onClose, initialPlayerId }) {
               </option>
             ))}
           </select>
-          <button type="submit" className="btn btn-primary" style={{marginTop:0}}>Guardar</button>
-          <button type="button" className="btn btn-cancel" style={{marginTop:0}} onClick={() => setShowForm(false)}>Cancelar</button>
+          <button type="submit" className="btn btn-primary" style={{marginTop:0}}>{editingPlayerId ? 'Guardar cambios' : 'Guardar'}</button>
+          <button type="button" className="btn btn-cancel" style={{marginTop:0}} onClick={closeForm}>Cancelar</button>
         </form>
       )}
 
@@ -186,17 +229,28 @@ export default function PlayerManagement({ teamId, onClose, initialPlayerId }) {
         </div>
       ) : (
         <div className="player-square-grid">
-          {sortedPlayers.map((player) => (
-            <button key={player.id} className="player-square-card" onClick={() => openDetail(player)}>
-              <div className="player-square-photo" style={{ background: positionColors[player.position] }}>
-                <span className="player-square-dorsal">{player.dorsal}</span>
-              </div>
-              <div className="player-square-info">
-                <div className="player-square-name">{player.name} {player.surname}</div>
-                <div className="player-square-position">{player.position}</div>
-              </div>
-            </button>
-          ))}
+          {sortedPlayers.map((player) => {
+            const form = formByPlayer[player.id]
+            return (
+              <button key={player.id} className="player-square-card" onClick={() => openDetail(player)}>
+                {form && (
+                  <span
+                    className={`player-form-badge form-${form.trend}`}
+                    title={`Forma reciente: ${form.score}/100`}
+                  >
+                    <ArrowUpIcon size={12} style={{ transform: `rotate(${form.rotation}deg)` }}/>
+                  </span>
+                )}
+                <div className="player-square-photo" style={{ background: positionColors[player.position] }}>
+                  <span className="player-square-dorsal">{player.dorsal}</span>
+                </div>
+                <div className="player-square-info">
+                  <div className="player-square-name">{player.name} {player.surname}</div>
+                  <div className="player-square-position">{player.position}</div>
+                </div>
+              </button>
+            )
+          })}
         </div>
       )}
 
@@ -209,9 +263,16 @@ export default function PlayerManagement({ teamId, onClose, initialPlayerId }) {
               </span>
               <div>
                 <h3 style={{margin:'0 0 4px'}}>{detailPlayer.name} {detailPlayer.surname}</h3>
-                <span className="player-square-position-badge" style={{ background:positionColors[detailPlayer.position] }}>
-                  {detailPlayer.position}
-                </span>
+                <div style={{display:'flex', alignItems:'center', gap:8}}>
+                  <span className="player-square-position-badge" style={{ background:positionColors[detailPlayer.position] }}>
+                    {detailPlayer.position}
+                  </span>
+                  {detailForm && (
+                    <span className={`player-form-badge player-form-badge-inline form-${detailForm.trend}`} title="Media de los 2 últimos partidos">
+                      <ArrowUpIcon size={12} style={{ transform: `rotate(${detailForm.rotation}deg)` }}/> Forma {detailForm.score}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -284,6 +345,9 @@ export default function PlayerManagement({ teamId, onClose, initialPlayerId }) {
             <div className="modal-buttons" style={{marginTop:16}}>
               <button className="btn btn-danger" style={{flex:'none', padding:'8px 14px', fontSize:13}} onClick={() => setConfirmDeleteFor(detailPlayer)}>
                 <TrashIcon size={13}/> Eliminar
+              </button>
+              <button className="btn btn-secondary" style={{flex:'none', padding:'8px 14px', fontSize:13}} onClick={() => handleStartEdit(detailPlayer)}>
+                <EditIcon size={13}/> Editar
               </button>
               <button className="btn btn-cancel" style={{flex:'none', padding:'8px 14px', fontSize:13, marginLeft:'auto'}} onClick={() => setDetailPlayer(null)}>Cerrar</button>
             </div>

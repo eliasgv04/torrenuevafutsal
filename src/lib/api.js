@@ -723,6 +723,33 @@ export const api = {
     return player
   },
 
+  async updatePlayer(playerId, {name, surname, dorsal, position}){
+    clearCache() // no team_id at hand here — cheap to just drop everything
+    const payload = {name, surname, dorsal, position}
+    try{
+      if(HAS_SUPABASE){
+        const { data, error } = await supabase
+          .from('players')
+          .update(payload)
+          .eq('id', playerId)
+          .select()
+          .single()
+        if(error) throw error
+        return data
+      }
+    }catch(e){
+      logAppError(e)
+    }
+    const players = lsGet('tf_players')
+    const idx = players.findIndex(p=>p.id===playerId)
+    if(idx>=0){
+      players[idx] = { ...players[idx], ...payload }
+      lsSet('tf_players', players)
+      return players[idx]
+    }
+    return null
+  },
+
   async deletePlayer(playerId){
     clearCache()
     try{

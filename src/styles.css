@@ -2607,6 +2607,7 @@ label{
 }
 
 .player-square-card{
+  position:relative;
   display:flex;
   flex-direction:column;
   aspect-ratio:1 / 1;
@@ -2618,6 +2619,33 @@ label{
   cursor:pointer;
   box-shadow:var(--shadow-sm);
   transition:all 0.25s ease;
+}
+
+/* Recent-form indicator: a little arrow rotated to point up/sideways/down
+   depending on the player's averaged score over their last 2 matches. */
+.player-form-badge{
+  position:absolute;
+  top:8px; right:8px;
+  width:22px; height:22px;
+  border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(15,23,42,0.55);
+  color:#fff;
+  z-index:2;
+}
+.player-form-badge.form-up{ background:#16a34a; }
+.player-form-badge.form-flat{ background:#f59e0b; }
+.player-form-badge.form-down{ background:#ef4444; }
+.player-form-badge svg{ transition:transform 0.25s ease; }
+
+.player-form-badge-inline{
+  position:static;
+  width:auto; height:auto;
+  border-radius:999px;
+  gap:4px;
+  padding:3px 10px 3px 8px;
+  font-size:11px;
+  font-weight:700;
 }
 
 .player-square-card:hover{
@@ -2655,11 +2683,14 @@ label{
   font-family:'Outfit', 'Poppins', sans-serif;
   font-weight:800;
   font-size:13px;
+  line-height:1.25;
+  min-height:2.5em;
   letter-spacing:-0.1px;
   color:var(--text-dark);
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
   overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
 }
 
 .player-square-position{
