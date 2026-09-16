@@ -68,7 +68,7 @@ function invalidateCache(key){
   readCache.delete(key)
 }
 
-function clearCache(){
+export function clearCache(){
   readCache.clear()
 }
 

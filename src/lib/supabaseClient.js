@@ -6,7 +6,7 @@ const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON || ''
 // Custom fetch: 60-second HTTP timeout instead of the browser default.
 // NOTE: to also remove the PostgreSQL statement_timeout (server-side), run this once
 // in your Supabase SQL editor:  ALTER DATABASE postgres SET statement_timeout = 0;
-function fetchWithTimeout(url, options) {
+export function fetchWithTimeout(url, options) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 60_000) // 60 s
   const init   = options?.signal

@@ -13,7 +13,7 @@ const DEFAULT_ACCENT_END = '#2563EB'
 const A4_WIDTH_PX = 794
 const A4_HEIGHT_PX = 1123
 
-function escapeHtml(value){
+export function escapeHtml(value){
   return String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -22,19 +22,19 @@ function escapeHtml(value){
     .replace(/'/g, '&#39;')
 }
 
-function cleanText(value){
+export function cleanText(value){
   return String(value ?? '')
     .replace(/[\u0000-\u001F\u007F]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 }
 
-function safeValue(value, fallback = '-'){
+export function safeValue(value, fallback = '-'){
   const text = cleanText(value)
   return text || fallback
 }
 
-async function fetchImageAsDataUrl(url){
+export async function fetchImageAsDataUrl(url){
   if(!url) return null
   try{
     const response = await fetch(url, { mode: 'cors', credentials: 'omit' })
@@ -52,18 +52,18 @@ async function fetchImageAsDataUrl(url){
   }
 }
 
-function formatMinSec(secs){
+export function formatMinSec(secs){
   const s = Math.max(0, Number(secs) || 0)
   const m = Math.floor(s / 60), r = s % 60
   return `${m}:${String(r).padStart(2, '0')}`
 }
 
-function sumStat(rows, key){
+export function sumStat(rows, key){
   return rows.reduce((sum, r) => sum + (Number(r.st?.[key]) || 0), 0)
 }
 
 const POSITION_ORDER = ['Portero', 'Cierre', 'Ala Zurdo', 'Ala Diestro', 'Pivot']
-function positionRank(position){
+export function positionRank(position){
   const idx = POSITION_ORDER.indexOf(position)
   return idx === -1 ? POSITION_ORDER.length : idx
 }
@@ -74,7 +74,7 @@ function positionRank(position){
 // is a known weak spot for it). All columns use fixed mm widths on purpose.
 const PLAYERS_GRID_COLUMNS = '8mm 70mm 12mm 10mm 10mm 10mm 10mm 10mm 10mm 10mm 14mm'
 
-function buildPlayersRowsHtml(rows){
+export function buildPlayersRowsHtml(rows){
   if(rows.length === 0){
     return '<div class="players-row"><div class="empty-row">Sin jugadores en la plantilla</div></div>'
   }
@@ -99,7 +99,7 @@ function buildPlayersRowsHtml(rows){
 // direction:rtl (an earlier version of this bar) rendered as blank pages
 // under jsPDF's html2canvas pipeline, so this sticks to the simplest CSS
 // that's proven to work in pdfExport.js: fixed widths, no flex, no grid.
-function buildComparisonRowsHtml(teamName, rivalName, ourTotals, rivalTotals, accentEnd){
+export function buildComparisonRowsHtml(teamName, rivalName, ourTotals, rivalTotals, accentEnd){
   const rows = [
     ['shots_on_goal', 'Tiros a puerta'],
     ['fouls', 'Faltas'],
@@ -124,7 +124,7 @@ function buildComparisonRowsHtml(teamName, rivalName, ourTotals, rivalTotals, ac
   }).join('')
 }
 
-function buildHtmlDocument({ match, teamName, logoDataUrl, accentStart, accentEnd, playersRowsHtml, comparisonHtml, homeScore, awayScore, isHome }){
+export function buildHtmlDocument({ match, teamName, logoDataUrl, accentStart, accentEnd, playersRowsHtml, comparisonHtml, homeScore, awayScore, isHome }){
   const matchDate = match.match_date ? new Date(match.match_date).toLocaleDateString('es-ES', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   }) : ''

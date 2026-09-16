@@ -209,7 +209,7 @@ const VIDEO_EXPORT_SUPPORTED =
   typeof MediaRecorder !== 'undefined' &&
   !!window.HTMLCanvasElement?.prototype?.captureStream
 
-function easeInOutQuad(t) {
+export function easeInOutQuad(t) {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
 }
 
@@ -218,7 +218,7 @@ function easeInOutQuad(t) {
 // starting frame holds its place until the very end of the transition, then
 // disappears (it "leaves"); an item only in the ending frame is shown at its
 // resting position for the whole transition (it "enters").
-function interpolateFrames(a, b, t) {
+export function interpolateFrames(a, b, t) {
   function blend(listA, listB) {
     const mapA = new Map(listA.map(item => [item.id, item]))
     const mapB = new Map(listB.map(item => [item.id, item]))

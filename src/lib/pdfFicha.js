@@ -16,7 +16,7 @@ const DEFAULT_ACCENT_END = '#2563EB'
 const A4_WIDTH_PX = 794   // 210mm at 96dpi
 const A4_HEIGHT_PX = 1123 // 297mm at 96dpi
 
-function escapeHtml(value){
+export function escapeHtml(value){
   return String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -24,12 +24,12 @@ function escapeHtml(value){
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
 }
-function cleanText(value){ return String(value ?? '').replace(/\s+/g, ' ').trim() }
-function safe(value, fallback = ''){ const t = cleanText(value); return t || fallback }
+export function cleanText(value){ return String(value ?? '').replace(/\s+/g, ' ').trim() }
+export function safe(value, fallback = ''){ const t = cleanText(value); return t || fallback }
 
 // e.g. "mar 14/09/26" — shown next to the session number so the ficha's
 // date is readable at a glance without having to open the training.
-function formatSessionDate(dateStr){
+export function formatSessionDate(dateStr){
   if(!dateStr) return ''
   const d = new Date(dateStr)
   if(Number.isNaN(d.getTime())) return ''
@@ -45,7 +45,7 @@ function formatSessionDate(dateStr){
 // or missing) Content-Type Storage sends back, which can produce a data URL
 // the <img> tag refuses to render (shows as a broken image). Drawing to a
 // canvas sidesteps that: toDataURL always emits a well-formed image/png.
-function fetchAsDataUrl(url){
+export function fetchAsDataUrl(url){
   if(!url) return Promise.resolve(null)
   if(url.startsWith('data:')) return Promise.resolve(url)
   return new Promise((resolve) => {
@@ -65,7 +65,7 @@ function fetchAsDataUrl(url){
   })
 }
 
-function pickPhotoUrl(item, exerciseLookup){
+export function pickPhotoUrl(item, exerciseLookup){
   if(!item) return null
   const parsed = parseItemNotes(item.notes)
   if(parsed.custom_photo_url) return parsed.custom_photo_url
@@ -90,7 +90,7 @@ function ensureFontsLoaded(){
   })
 }
 
-function buildHtml({ training, ficha, sessionNumber, teamName, attending, extras, photos, logoDataUrl, accentStart, accentEnd }){
+export function buildHtml({ training, ficha, sessionNumber, teamName, attending, extras, photos, logoDataUrl, accentStart, accentEnd }){
   const sections = sectionsFromItems(training.items || [])
   const inicio = sections[SECTION.WARMUP_INICIO] || []
   const movs = sections[SECTION.WARMUP_MOVIMIENTOS] || []

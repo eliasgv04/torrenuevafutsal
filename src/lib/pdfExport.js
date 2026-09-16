@@ -3,7 +3,7 @@ import { jsPDF } from 'jspdf'
 const DEFAULT_ACCENT_START = '#1E3A8A'
 const DEFAULT_ACCENT_END = '#2563EB'
 
-function escapeHtml(value){
+export function escapeHtml(value){
   return String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -12,19 +12,19 @@ function escapeHtml(value){
     .replace(/'/g, '&#39;')
 }
 
-function cleanText(value){
+export function cleanText(value){
   return String(value ?? '')
     .replace(/[\u0000-\u001F\u007F]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 }
 
-function safeValue(value, fallback = '-'){
+export function safeValue(value, fallback = '-'){
   const text = cleanText(value)
   return text || fallback
 }
 
-async function fetchImageAsDataUrl(url){
+export async function fetchImageAsDataUrl(url){
   if(!url) return null
   try{
     const response = await fetch(url, { mode: 'cors', credentials: 'omit' })
@@ -42,7 +42,7 @@ async function fetchImageAsDataUrl(url){
   }
 }
 
-function buildPlayerList(training, players){
+export function buildPlayerList(training, players){
   const playersArr = Array.isArray(players) ? players : []
   const ids = Array.isArray(training.attending_players) ? training.attending_players : []
   return ids
@@ -56,7 +56,7 @@ function buildPlayerList(training, players){
     .filter(Boolean)
 }
 
-function buildObjectivesHtml(objectives){
+export function buildObjectivesHtml(objectives){
   if(!objectives || typeof objectives !== 'object') return ''
   const rows = [
     ['Físicos', objectives.fisicos],
@@ -75,7 +75,7 @@ function buildObjectivesHtml(objectives){
   `).join('')
 }
 
-async function buildExerciseCardsHtml(items){
+export async function buildExerciseCardsHtml(items){
   const exercises = Array.isArray(items) ? items : []
   const cards = []
 
@@ -97,7 +97,7 @@ async function buildExerciseCardsHtml(items){
   return cards.join('')
 }
 
-function buildHtmlDocument({ training, players, teamName, logoDataUrl, accentStart, accentEnd, exercisesHtml, playersHtml, objectivesHtml }){
+export function buildHtmlDocument({ training, players, teamName, logoDataUrl, accentStart, accentEnd, exercisesHtml, playersHtml, objectivesHtml }){
   const trainingDate = new Date(training.training_date).toLocaleDateString('es-ES', {
     weekday: 'long',
     day: 'numeric',
