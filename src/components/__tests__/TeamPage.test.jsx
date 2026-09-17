@@ -109,7 +109,7 @@ function setDefaults({ exercises = [], players = [], trainings = [] } = {}) {
   api.getTrainingItemsByTrainingIds.mockResolvedValue({})
 }
 
-beforeEach(() => { vi.clearAllMocks() })
+beforeEach(() => { vi.clearAllMocks(); localStorage.clear() })
 
 describe('TeamPage — view routing from the hub', () => {
   it('shows the hub with live counts, and can navigate to and back from every view', async () => {
@@ -307,6 +307,85 @@ describe('TeamPage — exercise bank', () => {
     expect(screen.getByText('forum-modal')).toBeInTheDocument()
     await user.click(screen.getByText('close-forum'))
     expect(screen.queryByText('forum-modal')).not.toBeInTheDocument()
+  })
+
+  it('shows a loading state before the exercise bank resolves', async () => {
+    const user = userEvent.setup()
+    let resolveExercises
+    api.getExercises.mockReturnValue(new Promise((res) => { resolveExercises = res }))
+    api.getPlayers.mockResolvedValue([])
+    api.getTrainings.mockResolvedValue([])
+    api.getTrainingItemsByTrainingIds.mockResolvedValue({})
+    render(<TeamPage team={team} onBack={() => {}} />)
+    await user.click(await screen.findByText('go-exercises'))
+
+    expect(screen.getByText('Cargando ejercicios…')).toBeInTheDocument()
+    resolveExercises([])
+    expect(await screen.findByText('Sin ejercicios aún')).toBeInTheDocument()
+  })
+
+  it('filters the exercise bank by category and by date range, then clears the filters', async () => {
+    const user = userEvent.setup()
+    setDefaults({
+      exercises: [{ id: 'e1', name: 'Rondo', category: 'Principal' }, { id: 'e2', name: 'Estiramientos', category: 'Final' }],
+      trainings: [{ id: 'tr1', training_date: '2026-01-10', items: [{ exercise_id: 'e1', dimensions: '40x20' }] }]
+    })
+    api.getTrainingItemsByTrainingIds.mockResolvedValue({ tr1: [{ exercise_id: 'e1', dimensions: '40x20' }] })
+    render(<TeamPage team={team} onBack={() => {}} />)
+    await user.click(await screen.findByText('go-exercises'))
+    await screen.findByText(/exercise-card-e1/)
+
+    await user.click(screen.getByRole('button', { name: /Más filtros/ }))
+    await user.selectOptions(screen.getByRole('combobox'), 'Final')
+    expect(screen.queryByText(/exercise-card-e1/)).not.toBeInTheDocument()
+    expect(screen.getByText(/exercise-card-e2/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Limpiar' }))
+    expect(screen.getByText(/exercise-card-e1/)).toBeInTheDocument()
+    expect(screen.getByText(/exercise-card-e2/)).toBeInTheDocument()
+  })
+
+  it('shows an empty state when the filters exclude every exercise', async () => {
+    const user = userEvent.setup()
+    setDefaults({ exercises: [{ id: 'e1', name: 'Rondo' }] })
+    render(<TeamPage team={team} onBack={() => {}} />)
+    await user.click(await screen.findByText('go-exercises'))
+    await screen.findByText(/exercise-card-e1/)
+
+    await user.type(screen.getByPlaceholderText('Buscar por nombre, objetivo o categoría'), 'zzz-nada')
+    expect(await screen.findByText('No hay ejercicios con esos filtros')).toBeInTheDocument()
+  })
+
+  it('paginates the exercise bank with "Mostrar más"', async () => {
+    const user = userEvent.setup()
+    const many = Array.from({ length: 31 }, (_, i) => ({ id: `e${i}`, name: `Ejercicio ${i}` }))
+    setDefaults({ exercises: many })
+    render(<TeamPage team={team} onBack={() => {}} />)
+    await user.click(await screen.findByText('go-exercises'))
+    await screen.findByText(/exercise-card-e0/)
+
+    expect(screen.getByText('30 de 31 ejercicios')).toBeInTheDocument()
+    expect(screen.queryByText(/exercise-card-e30/)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Mostrar más/ }))
+    expect(screen.getByText(/exercise-card-e30/)).toBeInTheDocument()
+  })
+
+  it('copies selected exercises to the clipboard, then pastes them back as new ones', async () => {
+    const user = userEvent.setup()
+    setDefaults({ exercises: [{ id: 'e1', name: 'Rondo', objective: 'Calentar', category: 'Principal', dimensions: '40x20' }] })
+    api.createExercise.mockResolvedValue({ id: 'e2', name: 'Rondo' })
+    render(<TeamPage team={team} onBack={() => {}} />)
+    await user.click(await screen.findByText('go-exercises'))
+    await screen.findByText(/exercise-card-e1/)
+
+    await user.click(screen.getByTitle('Seleccionar ejercicios'))
+    await user.click(screen.getByText('select-e1'))
+    await user.click(screen.getByRole('button', { name: /Copiar/ }))
+
+    const pasteButton = await screen.findByRole('button', { name: /Pegar \(1\)/ })
+    await user.click(pasteButton)
+    expect(api.createExercise).toHaveBeenCalledWith(expect.objectContaining({ team_id: 't1', name: 'Rondo' }))
   })
 })
 

@@ -117,6 +117,21 @@ describe('api.updateTraining / api.replaceTrainingItems / api.deleteTraining', (
     expect(builder.update).toHaveBeenCalledWith({ notes: 'nueva nota' })
   })
 
+  it('updateTraining falls back to patching the local mirror when Supabase is unreachable', async () => {
+    localStorage.setItem('tf_trainings', JSON.stringify([{ id: 'tr1', notes: 'vieja' }]))
+    supabaseMock.from.mockReturnValueOnce(chainable({ data: null, error: { message: 'down' } }))
+
+    const result = await api.updateTraining('tr1', { notes: 'nueva nota' })
+
+    expect(result.notes).toBe('nueva nota')
+    expect(JSON.parse(localStorage.getItem('tf_trainings'))[0].notes).toBe('nueva nota')
+  })
+
+  it('updateTraining returns null locally when the training does not exist', async () => {
+    supabaseMock.from.mockReturnValueOnce(chainable({ data: null, error: { message: 'down' } }))
+    expect(await api.updateTraining('missing', { notes: 'x' })).toBeNull()
+  })
+
   it('replaceTrainingItems deletes the old items then inserts the new ones', async () => {
     const deleteBuilder = chainable({ error: null })
     const insertBuilder = chainable({ error: null })
@@ -132,6 +147,19 @@ describe('api.updateTraining / api.replaceTrainingItems / api.deleteTraining', (
     supabaseMock.from.mockReturnValueOnce(chainable({ error: null }))
     await api.replaceTrainingItems('tr1', [])
     expect(supabaseMock.from.mock.calls.filter(c => c[0] === 'training_exercises')).toHaveLength(1) // delete only
+  })
+
+  it('replaceTrainingItems falls back to rewriting the local items when Supabase is unreachable', async () => {
+    localStorage.setItem('tf_training_items', JSON.stringify([{ id: 'i-old', training_id: 'tr1' }, { id: 'i-other', training_id: 'tr2' }]))
+    supabaseMock.from.mockReturnValueOnce(chainable({ error: { message: 'down' } }))
+
+    const result = await api.replaceTrainingItems('tr1', [{ exercise_name: 'Rondo', order_index: 0 }])
+
+    expect(result).toBe(true)
+    const stored = JSON.parse(localStorage.getItem('tf_training_items'))
+    expect(stored.find(i => i.id === 'i-other')).toBeTruthy() // other trainings' items untouched
+    expect(stored.find(i => i.training_id === 'tr1' && i.exercise_name === 'Rondo')).toBeTruthy()
+    expect(stored.find(i => i.id === 'i-old')).toBeUndefined() // old items for tr1 replaced
   })
 
   it('removes both the training and its items locally when Supabase is unreachable', async () => {

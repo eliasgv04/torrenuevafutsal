@@ -98,4 +98,12 @@ describe('api.deletePlayer', () => {
     await api.deletePlayer('p1')
     expect(JSON.parse(localStorage.getItem('tf_players'))).toEqual([{ id: 'p2' }])
   })
+
+  it('also removes the player locally when the Supabase delete itself fails', async () => {
+    localStorage.setItem('tf_players', JSON.stringify([{ id: 'p1' }, { id: 'p2' }]))
+    supabaseMock.from.mockReturnValueOnce(chainable({ error: { message: 'down' } }))
+
+    await api.deletePlayer('p1')
+    expect(JSON.parse(localStorage.getItem('tf_players'))).toEqual([{ id: 'p2' }])
+  })
 })

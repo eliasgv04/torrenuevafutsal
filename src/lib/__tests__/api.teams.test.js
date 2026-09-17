@@ -143,3 +143,57 @@ describe('api.deleteTeam', () => {
     expect(supabaseMock.from).toHaveBeenCalledTimes(3) // getExercises, deleteTeam, getExercises again
   })
 })
+
+// One-time migration (triggered lazily from getTeams/getPlayers) that moves
+// anything left over from the pre-Supabase, localStorage-only version of the
+// app into the cloud: matched by name (team) or by dorsal+name+surname
+// (player) against what's already there, so it's safe to run more than once.
+describe('ensureLocalPlayersSynced (via api.getTeams)', () => {
+  it('matches an existing cloud team/player by name, and creates the ones that are missing', async () => {
+    localStorage.setItem('tf_teams', JSON.stringify([{ id: 'lt1', name: 'Torrenueva' }]))
+    localStorage.setItem('tf_players', JSON.stringify([
+      { id: 'lp1', team_id: 'lt1', name: 'Ana', surname: 'García', dorsal: 7, position: 'Cierre' },
+      { id: 'lp2', team_id: 'lt1', name: 'Luis', surname: 'B', dorsal: 1, position: 'Portero' }
+    ]))
+
+    supabaseMock.from
+      .mockReturnValueOnce(chainable({ data: [{ id: 'ct1', name: 'torrenueva' }], error: null })) // cloud teams (case-insensitive match)
+      .mockReturnValueOnce(chainable({ data: [{ id: 'cp1', team_id: 'ct1', name: 'Ana', surname: 'García', dorsal: 7 }], error: null })) // cloud players for ct1
+      .mockReturnValueOnce(chainable({ data: { id: 'cp2', team_id: 'ct1', name: 'Luis', surname: 'B', dorsal: 1, position: 'Portero' }, error: null })) // insert Luis
+      .mockReturnValueOnce(chainable({ data: [{ id: 'ct1', name: 'torrenueva' }], error: null })) // getTeams' own select
+
+    const teams = await api.getTeams()
+
+    expect(teams).toEqual([{ id: 'ct1', name: 'torrenueva' }])
+    expect(supabaseMock.from.mock.calls.filter(c => c[0] === 'teams')).toHaveLength(2) // cloud lookup + getTeams' own select (no insert — matched by name)
+    const playersCalls = supabaseMock.from.mock.calls.filter(c => c[0] === 'players')
+    expect(playersCalls).toHaveLength(2) // select existing + insert only the unmatched one (Luis)
+    expect(localStorage.getItem('tf_supabase_players_synced_v1')).toBe('1')
+  })
+
+  it('runs only once: a second call skips the sync entirely', async () => {
+    localStorage.setItem('tf_teams', JSON.stringify([{ id: 'lt1', name: 'Torrenueva' }]))
+    localStorage.setItem('tf_players', JSON.stringify([{ id: 'lp1', team_id: 'lt1', name: 'Ana', surname: 'García', dorsal: 7 }]))
+    supabaseMock.from
+      .mockReturnValueOnce(chainable({ data: [], error: null })) // cloud teams (none yet)
+      .mockReturnValueOnce(chainable({ data: { id: 'ct1', name: 'Torrenueva' }, error: null })) // insert team
+      .mockReturnValueOnce(chainable({ data: [], error: null })) // cloud players for ct1 (none yet)
+      .mockReturnValueOnce(chainable({ data: { id: 'cp1', team_id: 'ct1', name: 'Ana' }, error: null })) // insert Ana
+      .mockReturnValueOnce(chainable({ data: [{ id: 'ct1', name: 'Torrenueva' }], error: null })) // getTeams' own select
+
+    await api.getTeams()
+    expect(localStorage.getItem('tf_supabase_players_synced_v1')).toBe('1')
+
+    supabaseMock.from.mockClear()
+    supabaseMock.from.mockReturnValueOnce(chainable({ data: [{ id: 'ct1', name: 'Torrenueva' }], error: null }))
+    await api.getTeams()
+    expect(supabaseMock.from).toHaveBeenCalledTimes(1) // only getTeams' own select — sync skipped
+  })
+
+  it('sets the synced flag without calling Supabase when there is nothing local to sync', async () => {
+    supabaseMock.from.mockReturnValueOnce(chainable({ data: [{ id: 'ct1', name: 'Torrenueva' }], error: null }))
+    await api.getTeams()
+    expect(supabaseMock.from).toHaveBeenCalledTimes(1)
+    expect(localStorage.getItem('tf_supabase_players_synced_v1')).toBe('1')
+  })
+})

@@ -37,6 +37,11 @@ describe('api.getMatchPlayerStats / api.getRivalTeamStats', () => {
     supabaseMock.from.mockReturnValueOnce(chainable({ data: null, error: { message: 'down' } }))
     expect(await api.getRivalTeamStats('m1')).toBeNull()
   })
+
+  it('returns the Supabase row for the rival stats', async () => {
+    supabaseMock.from.mockReturnValueOnce(chainable({ data: { match_id: 'm1', goals: 1 }, error: null }))
+    expect(await api.getRivalTeamStats('m1')).toEqual({ match_id: 'm1', goals: 1 })
+  })
 })
 
 describe('api.upsertMatchPlayerStats', () => {
@@ -85,6 +90,18 @@ describe('api.upsertRivalTeamStats', () => {
     await api.upsertRivalTeamStats({ match_id: 'm1', goals: 1 })
     expect(builder.upsert).toHaveBeenCalledWith(expect.objectContaining({ match_id: 'm1' }), { onConflict: 'match_id' })
   })
+
+  it('replaces the existing local row for the match instead of duplicating it, on failure', async () => {
+    localStorage.setItem('tf_rival_team_stats', JSON.stringify([{ id: 'old', match_id: 'm1', goals: 0 }]))
+    supabaseMock.from.mockReturnValueOnce(chainable({ data: null, error: { message: 'down' } }))
+
+    const result = await api.upsertRivalTeamStats({ match_id: 'm1', goals: 2 })
+
+    expect(result.goals).toBe(2)
+    const stored = JSON.parse(localStorage.getItem('tf_rival_team_stats'))
+    expect(stored).toHaveLength(1)
+    expect(stored[0].goals).toBe(2)
+  })
 })
 
 describe('api.getOnFieldPlayers / setPlayerOnField / setPlayerOffField', () => {
@@ -104,6 +121,17 @@ describe('api.getOnFieldPlayers / setPlayerOnField / setPlayerOffField', () => {
     ]))
     supabaseMock.from.mockReturnValueOnce(chainable({ data: null, error: { message: 'down' } }))
     expect(await api.getOnFieldPlayers('m1')).toEqual([{ id: 'o1', match_id: 'm1' }])
+  })
+
+  it('returns the Supabase rows directly for getOnFieldPlayers, setPlayerOnField and setPlayerOffField', async () => {
+    supabaseMock.from.mockReturnValueOnce(chainable({ data: [{ id: 'o1', match_id: 'm1' }], error: null }))
+    expect(await api.getOnFieldPlayers('m1')).toEqual([{ id: 'o1', match_id: 'm1' }])
+
+    supabaseMock.from.mockReturnValueOnce(chainable({ data: { id: 'o2', match_id: 'm1', player_id: 'p1' }, error: null }))
+    expect(await api.setPlayerOnField({ match_id: 'm1', player_id: 'p1', entry_minute: 0 })).toEqual({ id: 'o2', match_id: 'm1', player_id: 'p1' })
+
+    supabaseMock.from.mockReturnValueOnce(chainable({ data: { id: 'o2', exit_minute: 30 }, error: null }))
+    expect(await api.setPlayerOffField('o2', 30)).toEqual({ id: 'o2', exit_minute: 30 })
   })
 })
 

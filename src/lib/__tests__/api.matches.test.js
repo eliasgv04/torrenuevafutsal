@@ -101,6 +101,27 @@ describe('api.updateMatchNotes / updateCalledUpPlayers / deleteMatch', () => {
     expect(result.called_up_players).toEqual(['p1', 'p2'])
   })
 
+  it('updateMatchNotes falls back to patching the local match when Supabase is unreachable', async () => {
+    localStorage.setItem('tf_matches', JSON.stringify([{ id: 'm1', notes: 'vieja' }]))
+    supabaseMock.from.mockReturnValueOnce(chainable({ data: null, error: { message: 'down' } }))
+    const result = await api.updateMatchNotes({ match_id: 'm1', notes: 'nueva' })
+    expect(result.notes).toBe('nueva')
+    expect(JSON.parse(localStorage.getItem('tf_matches'))[0].notes).toBe('nueva')
+  })
+
+  it('updateMatchNotes returns null locally for a match that does not exist', async () => {
+    supabaseMock.from.mockReturnValueOnce(chainable({ data: null, error: { message: 'down' } }))
+    expect(await api.updateMatchNotes({ match_id: 'missing', notes: 'x' })).toBeNull()
+  })
+
+  it('updateCalledUpPlayers falls back to patching the local match when Supabase is unreachable', async () => {
+    localStorage.setItem('tf_matches', JSON.stringify([{ id: 'm1', called_up_players: [] }]))
+    supabaseMock.from.mockReturnValueOnce(chainable({ data: null, error: { message: 'down' } }))
+    const result = await api.updateCalledUpPlayers({ match_id: 'm1', player_ids: ['p1'] })
+    expect(result.called_up_players).toEqual(['p1'])
+    expect(JSON.parse(localStorage.getItem('tf_matches'))[0].called_up_players).toEqual(['p1'])
+  })
+
   it('deleteMatch removes the match from local storage regardless of the Supabase outcome', async () => {
     localStorage.setItem('tf_matches', JSON.stringify([{ id: 'm1' }, { id: 'm2' }]))
     supabaseMock.from.mockReturnValueOnce(chainable({ error: null }))
